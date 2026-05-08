@@ -7,9 +7,8 @@ import GradientButton from "./GradientButton";
 
 const navLinks = [
   { label: "Home", href: "#" },
-  { label: "Lost Items", href: "#lost" },
-  { label: "Found Items", href: "#found" },
   { label: "How it Works", href: "#how" },
+  { label: "Features", href: "#features" },
   { label: "Community", href: "#community" },
 ];
 
