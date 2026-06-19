@@ -1,0 +1,64 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               String    @id @default(uuid())
+  email            String    @unique
+  name             String?
+  role             String    @default("student")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  items            Item[]
+  messagesSent     Message[] @relation("SentMessages")
+  messagesReceived Message[] @relation("ReceivedMessages")
+}
+
+model Item {
+  id             String    @id @default(uuid())
+  title          String
+  description    String
+  image          String?
+  type           String    // "LOST" or "FOUND"
+  category       String
+  location       String
+  date           DateTime
+  status         String    @default("ACTIVE") // "ACTIVE", "RESOLVED"
+  tags           String    // comma-separated tags
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matchesAsItem1 Match[]   @relation("Item1Matches")
+  matchesAsItem2 Match[]   @relation("Item2Matches")
+}
+
+model Match {
+  id        String   @id @default(uuid())
+  item1Id   String   // Typically the LOST item
+  item1     Item     @relation("Item1Matches", fields: [item1Id], references: [id], onDelete: Cascade)
+  item2Id   String   // Typically the FOUND item
+  item2     Item     @relation("Item2Matches", fields: [item2Id], references: [id], onDelete: Cascade)
+  score     Float    // Similarity score (0 to 100)
+  reasons   String   // Comma-separated or serialized match reasons
+  status    String   @default("PENDING") // "PENDING", "APPROVED", "REJECTED"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([item1Id, item2Id])
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  senderId   String
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  content    String
+  createdAt  DateTime @default(now())
+}

@@ -1,0 +1,374 @@
+const express = require("express");
+const LostItem = require("../models/LostItem");
+const FoundItem = require("../models/FoundItem");
+const Notification = require("../models/Notification");
+const { auth } = require("../middleware/auth");
+
+const router = express.Router();
+
+// Helper to look for matches and send notifications
+const checkForMatches = async (newItem, type) => {
+  try {
+    const isLost = type === "lost";
+    const TargetModel = isLost ? FoundItem : LostItem;
+    
+    // Find potential matches of opposite type with same category & subcategory
+    const potentialMatches = await TargetModel.find({
+      category: newItem.category,
+      subcategory: newItem.subcategory,
+      status: "active"
+    });
+
+    const titleLower = newItem.title.toLowerCase();
+    const keywords = titleLower.split(/\s+/).filter(w => w.length > 2);
+    
+    for (const match of potentialMatches) {
+      const matchTitle = match.title.toLowerCase();
+      // Check if they share any keyword (length > 2) in the title
+      const sharesKeyword = keywords.some(kw => matchTitle.includes(kw)) || 
+                           matchTitle.split(/\s+/).filter(w => w.length > 2).some(kw => titleLower.includes(kw));
+                           
+      if (sharesKeyword) {
+        const targetUserId = isLost ? match.finderId : match.ownerId;
+        const currentUserId = isLost ? newItem.ownerId : newItem.finderId;
+
+        // Notify matching owner/finder
+        await Notification.create({
+          userId: targetUserId,
+          message: `Potential match found: Another user reported "${newItem.title}" which matches your reported "${match.title}".`,
+          type: "match_found",
+          relatedItemId: newItem._id,
+          itemType: isLost ? "LostItem" : "FoundItem"
+        });
+
+        // Notify current user
+        await Notification.create({
+          userId: currentUserId,
+          message: `Potential match detected in database: "${match.title}" matches your reported "${newItem.title}".`,
+          type: "match_found",
+          relatedItemId: match._id,
+          itemType: isLost ? "FoundItem" : "LostItem"
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Error matching items/creating notifications:", err);
+  }
+};
+
+// Helper to check if item is owned by user or user is admin
+const canModify = (userId, ownerId, userRole) => {
+  return userId.toString() === ownerId.toString() || userRole === "admin";
+};
+
+// @route   GET api/items/all
+// @desc    Get all lost and found items with optional filters
+// @access  Public
+router.get("/all", async (req, res) => {
+  try {
+    const { category, subcategory, location, status, q } = req.query;
+    let filter = {};
+
+    if (category) filter.category = category;
+    if (subcategory) filter.subcategory = subcategory;
+    if (status) filter.status = status;
+    
+    // Fuzzy search for query
+    let queryFilter = { ...filter };
+    if (q) {
+      const regex = new RegExp(q, "i");
+      queryFilter.$or = [
+        { title: regex },
+        { visibleDescription: regex },
+      ];
+    }
+
+    // Location search
+    if (location) {
+      const locRegex = new RegExp(location, "i");
+      queryFilter.$or = queryFilter.$or || [];
+      queryFilter.$or.push({ locationLost: locRegex }, { locationFound: locRegex });
+    }
+
+    // We fetch lost items and found items
+    let lostFilter = { ...queryFilter };
+    let foundFilter = { ...queryFilter };
+
+    // Clean up type-specific filter fields if needed
+    if (queryFilter.$or) {
+      lostFilter.$or = queryFilter.$or.map(cond => {
+        let newCond = { ...cond };
+        if (cond.locationFound) {
+          newCond.locationLost = cond.locationFound;
+          delete newCond.locationFound;
+        }
+        return newCond;
+      });
+      foundFilter.$or = queryFilter.$or.map(cond => {
+        let newCond = { ...cond };
+        if (cond.locationLost) {
+          newCond.locationFound = cond.locationLost;
+          delete newCond.locationLost;
+        }
+        return newCond;
+      });
+    }
+
+    const lostItems = await LostItem.find(lostFilter).populate("ownerId", "name email");
+    const foundItems = await FoundItem.find(foundFilter).populate("finderId", "name email");
+
+    // Map them to a unified format
+    const formattedLost = lostItems.map(item => ({
+      _id: item._id,
+      title: item.title,
+      category: item.category,
+      subcategory: item.subcategory,
+      description: item.visibleDescription, // compatibility
+      visibleDescription: item.visibleDescription,
+      location: item.locationLost,
+      date: item.dateLost,
+      images: item.images,
+      owner: item.ownerId,
+      status: item.status,
+      verificationData: item.verificationData,
+      type: "lost",
+      createdAt: item.createdAt,
+    }));
+
+    const formattedFound = foundItems.map(item => ({
+      _id: item._id,
+      title: item.title,
+      category: item.category,
+      subcategory: item.subcategory,
+      description: item.visibleDescription, // compatibility
+      visibleDescription: item.visibleDescription,
+      location: item.locationFound,
+      date: item.dateFound,
+      images: item.images,
+      owner: item.finderId, // Map to owner for unified client consumption
+      status: item.status,
+      verificationData: item.verificationData,
+      type: "found",
+      createdAt: item.createdAt,
+    }));
+
+    const allItems = [...formattedLost, ...formattedFound].sort((a, b) => b.createdAt - a.createdAt);
+    res.json(allItems);
+  } catch (err) {
+    console.error("Get all items error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+// @route   GET api/items/:id
+// @desc    Get a single lost or found item by ID
+// @access  Public
+router.get("/:id", async (req, res) => {
+  try {
+    let item = await LostItem.findById(req.params.id).populate("ownerId", "name email");
+    let type = "lost";
+    
+    if (!item) {
+      item = await FoundItem.findById(req.params.id).populate("finderId", "name email");
+      type = "found";
+    }
+
+    if (!item) {
+      return res.status(404).json({ message: "Item not found" });
+    }
+
+    const formatted = {
+      _id: item._id,
+      title: item.title,
+      category: item.category,
+      subcategory: item.subcategory,
+      description: item.visibleDescription,
+      visibleDescription: item.visibleDescription,
+      location: type === "lost" ? item.locationLost : item.locationFound,
+      date: type === "lost" ? item.dateLost : item.dateFound,
+      images: item.images,
+      owner: type === "lost" ? item.ownerId : item.finderId,
+      status: item.status,
+      verificationData: item.verificationData,
+      type,
+      createdAt: item.createdAt,
+    };
+
+    res.json(formatted);
+  } catch (err) {
+    console.error("Get single item error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+// @route   GET api/items/my-lost
+// @desc    Get logged in user's reported lost items
+// @access  Private
+router.get("/my-lost", auth, async (req, res) => {
+  try {
+    const items = await LostItem.find({ ownerId: req.user.id }).sort({ createdAt: -1 });
+    res.json(items);
+  } catch (err) {
+    console.error("Get my lost items error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+// @route   GET api/items/my-found
+// @desc    Get logged in user's reported found items
+// @access  Private
+router.get("/my-found", auth, async (req, res) => {
+  try {
+    const items = await FoundItem.find({ finderId: req.user.id }).sort({ createdAt: -1 });
+    res.json(items);
+  } catch (err) {
+    console.error("Get my found items error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+// @route   POST api/items/lost
+// @desc    Report a lost item
+// @access  Private
+router.post("/lost", auth, async (req, res) => {
+  const { title, category, subcategory, visibleDescription, locationLost, dateLost, images, verificationData } = req.body;
+
+  try {
+    const newItem = new LostItem({
+      title,
+      category,
+      subcategory,
+      visibleDescription,
+      locationLost,
+      dateLost,
+      images: images ? (Array.isArray(images) ? images : [images]) : [],
+      ownerId: req.user.id,
+      verificationData: verificationData || {},
+    });
+
+    const item = await newItem.save();
+    checkForMatches(item, "lost");
+    res.status(201).json(item);
+  } catch (err) {
+    console.error("Create lost item error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+// @route   POST api/items/found
+// @desc    Report a found item
+// @access  Private
+router.post("/found", auth, async (req, res) => {
+  const { title, category, subcategory, visibleDescription, locationFound, dateFound, images, verificationData } = req.body;
+
+  try {
+    const newItem = new FoundItem({
+      title,
+      category,
+      subcategory,
+      visibleDescription,
+      locationFound,
+      dateFound,
+      images: images ? (Array.isArray(images) ? images : [images]) : [],
+      finderId: req.user.id,
+      verificationData: verificationData || {},
+    });
+
+    const item = await newItem.save();
+    checkForMatches(item, "found");
+    res.status(201).json(item);
+  } catch (err) {
+    console.error("Create found item error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+// @route   PUT api/items/lost/:id
+// @desc    Update a lost item
+// @access  Private
+router.put("/lost/:id", auth, async (req, res) => {
+  try {
+    let item = await LostItem.findById(req.params.id);
+    if (!item) {
+      return res.status(404).json({ message: "Lost item not found." });
+    }
+
+    if (!canModify(req.user.id, item.ownerId, req.user.role)) {
+      return res.status(403).json({ message: "User not authorized to edit this item." });
+    }
+
+    item = await LostItem.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true });
+    res.json(item);
+  } catch (err) {
+    console.error("Update lost item error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+// @route   PUT api/items/found/:id
+// @desc    Update a found item
+// @access  Private
+router.put("/found/:id", auth, async (req, res) => {
+  try {
+    let item = await FoundItem.findById(req.params.id);
+    if (!item) {
+      return res.status(404).json({ message: "Found item not found." });
+    }
+
+    if (!canModify(req.user.id, item.finderId, req.user.role)) {
+      return res.status(403).json({ message: "User not authorized to edit this item." });
+    }
+
+    item = await FoundItem.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true });
+    res.json(item);
+  } catch (err) {
+    console.error("Update found item error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+// @route   DELETE api/items/lost/:id
+// @desc    Delete a lost item
+// @access  Private
+router.delete("/lost/:id", auth, async (req, res) => {
+  try {
+    const item = await LostItem.findById(req.params.id);
+    if (!item) {
+      return res.status(404).json({ message: "Lost item not found." });
+    }
+
+    if (!canModify(req.user.id, item.ownerId, req.user.role)) {
+      return res.status(403).json({ message: "User not authorized to delete this item." });
+    }
+
+    await LostItem.findByIdAndDelete(req.params.id);
+    res.json({ message: "Lost item deleted." });
+  } catch (err) {
+    console.error("Delete lost item error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+// @route   DELETE api/items/found/:id
+// @desc    Delete a found item
+// @access  Private
+router.delete("/found/:id", auth, async (req, res) => {
+  try {
+    const item = await FoundItem.findById(req.params.id);
+    if (!item) {
+      return res.status(404).json({ message: "Found item not found." });
+    }
+
+    if (!canModify(req.user.id, item.finderId, req.user.role)) {
+      return res.status(403).json({ message: "User not authorized to delete this item." });
+    }
+
+    await FoundItem.findByIdAndDelete(req.params.id);
+    res.json({ message: "Found item deleted." });
+  } catch (err) {
+    console.error("Delete found item error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+module.exports = router;

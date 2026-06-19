@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { Search, Sparkles, ArrowRight, MapPin, Shield, Zap } from "lucide-react";
 import GlowingBlobs from "@/animations/GlowingBlobs";
@@ -42,6 +45,18 @@ const stats = [
 
 /* ── Component ──────────────────────────────────────────────── */
 export default function Hero() {
+  const [query, setQuery] = useState("");
+  const router = useRouter();
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (query.trim()) {
+      router.push(`/search?q=${encodeURIComponent(query)}`);
+    } else {
+      router.push("/search");
+    }
+  };
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background layers */}
@@ -82,10 +97,10 @@ export default function Hero() {
           className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight leading-[1.05]"
         >
           <span className="block text-ct-text-primary">
-            Lost something
+            Find What
           </span>
           <span className="block mt-2 bg-gradient-to-r from-ct-blue-bright via-ct-indigo to-ct-purple bg-clip-text text-transparent animate-gradient">
-            on campus?
+            Matters.
           </span>
         </motion.h1>
 
@@ -94,15 +109,13 @@ export default function Hero() {
           variants={fadeUp}
           className="mt-6 md:mt-8 text-lg md:text-xl text-ct-text-secondary max-w-2xl mx-auto leading-relaxed"
         >
-          We help it find its way back.{" "}
-          <span className="text-ct-text-primary font-medium">CampusTrace</span>{" "}
-          uses smart AI matching to reconnect you with your belongings — fast,
-          secure, and community-driven.
+          Lost something on campus? Found something? <br className="hidden sm:inline" />
+          Let <span className="text-ct-text-primary font-bold">CampusTrace</span> connect people securely.
         </motion.p>
 
         {/* Search bar */}
         <motion.div variants={fadeUp} className="mt-10 md:mt-12 max-w-2xl mx-auto">
-          <div className="relative group">
+          <form onSubmit={handleSearch} className="relative group">
             {/* Outer glow ring */}
             <div className="absolute -inset-[2px] rounded-2xl bg-gradient-to-r from-ct-blue/30 via-ct-purple/20 to-ct-cyan/30 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-500 blur-sm" />
 
@@ -111,9 +124,12 @@ export default function Hero() {
               <input
                 type="text"
                 placeholder="Search for your lost item..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
                 className="flex-1 bg-transparent text-ct-text-primary placeholder:text-ct-text-muted text-sm md:text-base outline-none"
               />
               <motion.button
+                type="submit"
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-ct-indigo to-ct-blue text-white text-sm font-medium shadow-[0_4px_15px_rgba(99,102,241,0.25)] hover:shadow-[0_4px_25px_rgba(99,102,241,0.4)] transition-shadow duration-300 cursor-pointer"
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
@@ -122,7 +138,7 @@ export default function Hero() {
                 <span className="hidden sm:inline">AI Search</span>
               </motion.button>
             </div>
-          </div>
+          </form>
         </motion.div>
 
         {/* CTA buttons */}
@@ -130,41 +146,18 @@ export default function Hero() {
           variants={fadeUp}
           className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4"
         >
-          <GradientButton
-            icon={<ArrowRight className="w-4 h-4" />}
-          >
-            Report Lost Item
-          </GradientButton>
-          <GradientButton variant="ghost">
-            I Found Something
-          </GradientButton>
-        </motion.div>
-
-        {/* Stats */}
-        <motion.div
-          variants={fadeUp}
-          className="mt-16 md:mt-20 flex flex-wrap items-center justify-center gap-8 md:gap-12"
-        >
-          {stats.map((stat, i) => {
-            const Icon = stat.icon;
-            return (
-              <motion.div
-                key={i}
-                className="flex items-center gap-3 group cursor-default"
-                whileHover={{ scale: 1.05 }}
-              >
-                <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center group-hover:border-ct-indigo/20 transition-colors duration-300">
-                  <Icon className="w-4.5 h-4.5 text-ct-indigo" />
-                </div>
-                <div className="text-left">
-                  <p className="text-lg font-bold text-ct-text-primary text-glow-blue">
-                    {stat.value}
-                  </p>
-                  <p className="text-xs text-ct-text-muted">{stat.label}</p>
-                </div>
-              </motion.div>
-            );
-          })}
+          <Link href="/report-lost">
+            <GradientButton
+              icon={<ArrowRight className="w-4 h-4" />}
+            >
+              Report Lost
+            </GradientButton>
+          </Link>
+          <Link href="/report-found">
+            <GradientButton variant="ghost">
+              Report Found
+            </GradientButton>
+          </Link>
         </motion.div>
 
         {/* Scroll indicator */}

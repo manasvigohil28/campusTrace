@@ -1,8 +1,8 @@
 import Navbar from "@/components/Navbar";
 import Hero from "@/sections/Hero";
-import HowItWorks from "@/sections/HowItWorks";
-import Features from "@/sections/Features";
-import Testimonials from "@/sections/Testimonials";
+import LiveActivity from "@/sections/LiveActivity";
+import HowVerificationWorks from "@/sections/HowVerificationWorks";
+import SuccessStories from "@/sections/SuccessStories";
 import CTA from "@/sections/CTA";
 import Footer from "@/sections/Footer";
 
@@ -11,9 +11,9 @@ export default function Home() {
     <main className="relative min-h-screen overflow-hidden">
       <Navbar />
       <Hero />
-      <HowItWorks />
-      <Features />
-      <Testimonials />
+      <LiveActivity />
+      <HowVerificationWorks />
+      <SuccessStories />
       <CTA />
       <Footer />
     </main>
