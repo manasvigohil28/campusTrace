@@ -20,7 +20,25 @@ const LostItemSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  images: {
+  location: {
+    public: {
+      type: String,
+      required: true,
+    },
+    private: {
+      type: String,
+      required: true,
+    }
+  },
+  dateLost: {
+    type: Date,
+    required: true,
+  },
+  publicImages: {
+    type: [String],
+    default: [],
+  },
+  verificationImages: {
     type: [String],
     default: [],
   },
@@ -31,12 +49,18 @@ const LostItemSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["active", "claimed", "resolved"],
+    enum: ["active", "under_review", "matched", "returned"],
     default: "active",
   },
   verificationData: {
-    type: mongoose.Schema.Types.Mixed,
-    required: true,
+    color: String,
+    brand: String,
+    contents: {
+      type: [String],
+      default: [],
+    },
+    specialMarks: String,
+    freeTextDescription: String,
   },
   createdAt: {
     type: Date,

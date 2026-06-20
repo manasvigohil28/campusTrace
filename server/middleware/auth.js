@@ -19,6 +19,20 @@ const auth = (req, res, next) => {
   }
 };
 
+const optionalAuth = (req, res, next) => {
+  const authHeader = req.header("Authorization");
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.split(" ")[1];
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      req.user = decoded;
+    } catch (error) {
+      // Ignore invalid/expired token, proceed as guest
+    }
+  }
+  next();
+};
+
 const admin = (req, res, next) => {
   if (!req.user || req.user.role !== "admin") {
     return res.status(403).json({ message: "Access denied. Admin role required." });
@@ -26,4 +40,4 @@ const admin = (req, res, next) => {
   next();
 };
 
-module.exports = { auth, admin };
+module.exports = { auth, admin, optionalAuth };

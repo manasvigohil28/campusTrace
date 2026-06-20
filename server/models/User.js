@@ -22,6 +22,16 @@ const UserSchema = new mongoose.Schema({
     enum: ["user", "admin"],
     default: "user",
   },
+  fraudFlags: {
+    suspiciousClaims: {
+      type: Number,
+      default: 0,
+    },
+    failedClaims: {
+      type: Number,
+      default: 0,
+    },
+  },
   createdAt: {
     type: Date,
     default: Date.now,

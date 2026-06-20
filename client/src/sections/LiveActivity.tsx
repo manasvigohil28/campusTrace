@@ -89,7 +89,7 @@ export default function LiveActivity() {
             category: item.category,
             subcategory: item.subcategory,
             visibleDescription: item.visibleDescription || item.description,
-            location: item.location,
+            location: item.location && typeof item.location === "object" ? item.location.public : item.location || "Unknown Location",
             date: item.date,
             images: item.images || [],
             type: item.type,
@@ -181,12 +181,14 @@ export default function LiveActivity() {
             <button
               onClick={() => scroll("left")}
               className="p-3 bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] text-ct-text-primary rounded-xl transition-all cursor-pointer shadow-md"
+              suppressHydrationWarning={true}
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
             <button
               onClick={() => scroll("right")}
               className="p-3 bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] text-ct-text-primary rounded-xl transition-all cursor-pointer shadow-md"
+              suppressHydrationWarning={true}
             >
               <ArrowRight className="w-4 h-4" />
             </button>

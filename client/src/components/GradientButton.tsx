@@ -41,6 +41,7 @@ export default function GradientButton({
       whileHover={{ scale: 1.03 }}
       whileTap={{ scale: 0.97 }}
       onClick={onClick}
+      suppressHydrationWarning={true}
     >
       {/* Shimmer overlay for primary */}
       {variant === "primary" && (

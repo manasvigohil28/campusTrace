@@ -315,7 +315,11 @@ export default function DashboardPage() {
                         {lostItems.map(item => (
                           <DashboardCard
                             key={item._id}
-                            item={{ ...item, location: item.locationLost, date: item.dateLost }}
+                            item={{
+                              ...item,
+                              location: item.location ? `${item.location.public}${item.location.private ? ` (Spot: ${item.location.private})` : ""}` : "No location specified",
+                              date: item.date
+                            }}
                             type="lost"
                             actionLoading={actionLoading}
                             onDelete={() => handleDeleteItem(item._id, "lost")}
@@ -334,7 +338,11 @@ export default function DashboardPage() {
                         {foundItems.map(item => (
                           <DashboardCard
                             key={item._id}
-                            item={{ ...item, location: item.locationFound, date: item.dateFound }}
+                            item={{
+                              ...item,
+                              location: item.location ? `${item.location.public}${item.location.private ? ` (Spot: ${item.location.private})` : ""}` : "No location specified",
+                              date: item.date
+                            }}
                             type="found"
                             actionLoading={actionLoading}
                             onDelete={() => handleDeleteItem(item._id, "found")}
@@ -378,9 +386,20 @@ export default function DashboardPage() {
                               <div className="text-left md:text-right text-[10px] text-ct-text-muted space-y-1">
                                 <p>Submitted: {new Date(claim.createdAt).toLocaleDateString()}</p>
                                 {claim.status === "approved" && (
-                                  <p className="text-green-400 font-semibold flex items-center gap-1">
-                                    <Check className="w-3.5 h-3.5" /> Verified! Contact: {claim.finderId?.email}
-                                  </p>
+                                  <div className="mt-1">
+                                    {claim.conversationId ? (
+                                      <Link href={`/chat?id=${claim.conversationId}`}>
+                                        <button className="py-1.5 px-3 rounded-lg bg-green-500/10 border border-green-500/35 hover:bg-green-500/20 text-green-400 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1.5">
+                                          <Inbox className="w-3.5 h-3.5 text-green-400" />
+                                          <span>Go to Handoff Chat</span>
+                                        </button>
+                                      </Link>
+                                    ) : (
+                                      <p className="text-green-400 font-semibold flex items-center gap-1">
+                                        <Check className="w-3.5 h-3.5" /> Approved! Chatting channel initializing...
+                                      </p>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -473,6 +492,15 @@ export default function DashboardPage() {
                                         <span>Reject</span>
                                       </button>
                                     </>
+                                  )}
+
+                                  {claim.status === "approved" && claim.conversationId && (
+                                    <Link href={`/chat?id=${claim.conversationId}`}>
+                                      <button className="py-2 px-3 bg-green-500/15 border border-green-500/25 hover:bg-green-500/25 text-green-400 text-xs font-bold rounded-xl transition-all flex items-center gap-1 cursor-pointer">
+                                        <Inbox className="w-3.5 h-3.5 text-green-400" />
+                                        <span>Open Secure Chat</span>
+                                      </button>
+                                    </Link>
                                   )}
                                 </div>
                               </div>
@@ -645,17 +673,36 @@ function EmptyState({ title, desc }: { title: string; desc: string }) {
 }
 
 function DashboardCard({ item, type, actionLoading, onDelete }: { item: any; type: "lost" | "found"; actionLoading: string | null; onDelete: () => void }) {
+  const [imgErr, setImgErr] = useState(false);
+
   return (
     <div className="glass rounded-2xl overflow-hidden border border-white/[0.06] flex flex-col justify-between shadow-md relative group hover:border-white/[0.1] transition-colors">
       
       {/* Top Image */}
       <div className="h-36 bg-black/40 relative flex items-center justify-center overflow-hidden">
-        {item.images && item.images[0] ? (
+        {item.imagesHidden ? (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-black/60 relative backdrop-blur-md">
+            {item.images && item.images[0] && !imgErr ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={item.images[0]}
+                alt={item.title}
+                className="absolute inset-0 w-full h-full object-cover opacity-25 blur-md"
+                onError={() => setImgErr(true)}
+              />
+            ) : null}
+            <div className="z-10 flex flex-col items-center gap-1.5 text-center px-4">
+              <EyeOff className="w-4 h-4 text-ct-cyan animate-pulse" />
+              <span className="text-[8px] font-bold text-ct-cyan uppercase tracking-wider">🔒 Blurred for Verification</span>
+            </div>
+          </div>
+        ) : item.images && item.images[0] && !imgErr ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={item.images[0]}
             alt={item.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            onError={() => setImgErr(true)}
           />
         ) : (
           <div className="text-ct-text-muted flex flex-col items-center gap-1">

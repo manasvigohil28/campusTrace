@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Search, MapPin, Calendar, Tag, Filter, ShieldAlert, Sparkles, Loader2, AlertCircle } from "lucide-react";
+import { Search, MapPin, Calendar, Tag, Filter, ShieldAlert, Sparkles, Loader2, AlertCircle, EyeOff } from "lucide-react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import { CATEGORY_MAP } from "@/lib/categories";
@@ -23,6 +23,7 @@ function SearchContent() {
 
   const [items, setItems] = useState<any[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
@@ -237,14 +238,32 @@ function SearchContent() {
                   <div>
                     {/* Card Image */}
                     <div className="h-40 bg-black/40 relative flex items-center justify-center overflow-hidden">
-                      {item.images && item.images[0] ? (
+                      {item.imagesHidden ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-black/60 relative backdrop-blur-md">
+                          {item.images && item.images[0] && !brokenImages[item._id] ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={item.images[0]}
+                              alt={item.title}
+                              className="absolute inset-0 w-full h-full object-cover opacity-25 blur-md"
+                              onError={() => {
+                                setBrokenImages(prev => ({ ...prev, [item._id]: true }));
+                              }}
+                            />
+                          ) : null}
+                          <div className="z-10 flex flex-col items-center gap-1.5 text-center px-4">
+                            <EyeOff className="w-4 h-4 text-ct-cyan animate-pulse" />
+                            <span className="text-[8px] font-bold text-ct-cyan uppercase tracking-wider">🔒 Blurred for Verification</span>
+                          </div>
+                        </div>
+                      ) : item.images && item.images[0] && !brokenImages[item._id] ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={item.images[0]}
                           alt={item.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = "none";
+                          onError={() => {
+                            setBrokenImages(prev => ({ ...prev, [item._id]: true }));
                           }}
                         />
                       ) : (
@@ -285,7 +304,9 @@ function SearchContent() {
                     <div className="pt-3 border-t border-white/[0.04] space-y-1 text-[11px] text-ct-text-muted">
                       <div className="flex items-center gap-1.5">
                         <MapPin className="w-3.5 h-3.5 text-ct-text-muted" />
-                        <span className="line-clamp-1">{item.location}</span>
+                        <span className="line-clamp-1">
+                          {item.location && typeof item.location === "object" ? item.location.public : item.location || "Unknown"}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-ct-text-muted" />

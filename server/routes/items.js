@@ -2,7 +2,7 @@ const express = require("express");
 const LostItem = require("../models/LostItem");
 const FoundItem = require("../models/FoundItem");
 const Notification = require("../models/Notification");
-const { auth } = require("../middleware/auth");
+const { auth, optionalAuth } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -61,10 +61,104 @@ const canModify = (userId, ownerId, userRole) => {
   return userId.toString() === ownerId.toString() || userRole === "admin";
 };
 
+// Formatter to sanitize properties based on requester permissions
+const formatItem = (item, type, reqUser) => {
+  const isOwner = reqUser && (
+    (type === "lost" && item.ownerId && (item.ownerId._id || item.ownerId).toString() === reqUser.id) ||
+    (type === "found" && item.finderId && (item.finderId._id || item.finderId).toString() === reqUser.id)
+  );
+  const isAdmin = reqUser && reqUser.role === "admin";
+  const hasFullAccess = isOwner || isAdmin;
+
+  // Contact info formatting
+  let ownerInfo = null;
+  const rawOwner = type === "lost" ? item.ownerId : item.finderId;
+  if (rawOwner) {
+    ownerInfo = {
+      _id: rawOwner._id || rawOwner.id,
+      name: rawOwner.name,
+    };
+    if (isAdmin) {
+      ownerInfo.email = rawOwner.email;
+    }
+  }
+
+  const formatted = {
+    _id: item._id,
+    title: item.title,
+    category: item.category,
+    subcategory: item.subcategory,
+    description: item.visibleDescription,
+    visibleDescription: item.visibleDescription,
+    location: {
+      public: item.location && item.location.public ? item.location.public : ""
+    },
+    date: type === "lost" ? item.dateLost : item.dateFound,
+    owner: ownerInfo,
+    status: item.status,
+    type,
+    createdAt: item.createdAt,
+  };
+
+  if (hasFullAccess) {
+    formatted.location.private = item.location && item.location.private ? item.location.private : "";
+    formatted.verificationData = item.verificationData || {};
+    formatted.publicImages = item.publicImages || [];
+    formatted.verificationImages = item.verificationImages || [];
+    // Frontend backwards compatibility
+    formatted.images = item.verificationImages || [];
+  } else {
+    // Hidden fields
+    formatted.verificationData = {};
+    if (type === "found") {
+      formatted.publicImages = item.publicImages || [];
+      formatted.verificationImages = [];
+      formatted.imagesHidden = item.verificationImages && item.verificationImages.length > 0;
+      // Frontend backwards compatibility
+      formatted.images = item.publicImages || [];
+    } else {
+      formatted.publicImages = item.publicImages || [];
+      formatted.verificationImages = item.verificationImages || [];
+      // Frontend backwards compatibility
+      formatted.images = item.verificationImages || [];
+    }
+  }
+
+  return formatted;
+};
+
+// @route   GET api/items/my-lost
+// @desc    Get logged in user's reported lost items
+// @access  Private
+router.get("/my-lost", auth, async (req, res) => {
+  try {
+    const items = await LostItem.find({ ownerId: req.user.id }).sort({ createdAt: -1 });
+    const formatted = items.map(item => formatItem(item, "lost", req.user));
+    res.json(formatted);
+  } catch (err) {
+    console.error("Get my lost items error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+// @route   GET api/items/my-found
+// @desc    Get logged in user's reported found items
+// @access  Private
+router.get("/my-found", auth, async (req, res) => {
+  try {
+    const items = await FoundItem.find({ finderId: req.user.id }).sort({ createdAt: -1 });
+    const formatted = items.map(item => formatItem(item, "found", req.user));
+    res.json(formatted);
+  } catch (err) {
+    console.error("Get my found items error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
 // @route   GET api/items/all
 // @desc    Get all lost and found items with optional filters
-// @access  Public
-router.get("/all", async (req, res) => {
+// @access  Public (Optional auth for role check)
+router.get("/all", optionalAuth, async (req, res) => {
   try {
     const { category, subcategory, location, status, q } = req.query;
     let filter = {};
@@ -83,74 +177,17 @@ router.get("/all", async (req, res) => {
       ];
     }
 
-    // Location search
+    // Location search on public location field
     if (location) {
       const locRegex = new RegExp(location, "i");
-      queryFilter.$or = queryFilter.$or || [];
-      queryFilter.$or.push({ locationLost: locRegex }, { locationFound: locRegex });
+      queryFilter["location.public"] = locRegex;
     }
 
-    // We fetch lost items and found items
-    let lostFilter = { ...queryFilter };
-    let foundFilter = { ...queryFilter };
+    const lostItems = await LostItem.find(queryFilter).populate("ownerId", "name email");
+    const foundItems = await FoundItem.find(queryFilter).populate("finderId", "name email");
 
-    // Clean up type-specific filter fields if needed
-    if (queryFilter.$or) {
-      lostFilter.$or = queryFilter.$or.map(cond => {
-        let newCond = { ...cond };
-        if (cond.locationFound) {
-          newCond.locationLost = cond.locationFound;
-          delete newCond.locationFound;
-        }
-        return newCond;
-      });
-      foundFilter.$or = queryFilter.$or.map(cond => {
-        let newCond = { ...cond };
-        if (cond.locationLost) {
-          newCond.locationFound = cond.locationLost;
-          delete newCond.locationLost;
-        }
-        return newCond;
-      });
-    }
-
-    const lostItems = await LostItem.find(lostFilter).populate("ownerId", "name email");
-    const foundItems = await FoundItem.find(foundFilter).populate("finderId", "name email");
-
-    // Map them to a unified format
-    const formattedLost = lostItems.map(item => ({
-      _id: item._id,
-      title: item.title,
-      category: item.category,
-      subcategory: item.subcategory,
-      description: item.visibleDescription, // compatibility
-      visibleDescription: item.visibleDescription,
-      location: item.locationLost,
-      date: item.dateLost,
-      images: item.images,
-      owner: item.ownerId,
-      status: item.status,
-      verificationData: item.verificationData,
-      type: "lost",
-      createdAt: item.createdAt,
-    }));
-
-    const formattedFound = foundItems.map(item => ({
-      _id: item._id,
-      title: item.title,
-      category: item.category,
-      subcategory: item.subcategory,
-      description: item.visibleDescription, // compatibility
-      visibleDescription: item.visibleDescription,
-      location: item.locationFound,
-      date: item.dateFound,
-      images: item.images,
-      owner: item.finderId, // Map to owner for unified client consumption
-      status: item.status,
-      verificationData: item.verificationData,
-      type: "found",
-      createdAt: item.createdAt,
-    }));
+    const formattedLost = lostItems.map(item => formatItem(item, "lost", req.user));
+    const formattedFound = foundItems.map(item => formatItem(item, "found", req.user));
 
     const allItems = [...formattedLost, ...formattedFound].sort((a, b) => b.createdAt - a.createdAt);
     res.json(allItems);
@@ -162,8 +199,8 @@ router.get("/all", async (req, res) => {
 
 // @route   GET api/items/:id
 // @desc    Get a single lost or found item by ID
-// @access  Public
-router.get("/:id", async (req, res) => {
+// @access  Public (Optional auth for role check)
+router.get("/:id", optionalAuth, async (req, res) => {
   try {
     let item = await LostItem.findById(req.params.id).populate("ownerId", "name email");
     let type = "lost";
@@ -177,52 +214,10 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ message: "Item not found" });
     }
 
-    const formatted = {
-      _id: item._id,
-      title: item.title,
-      category: item.category,
-      subcategory: item.subcategory,
-      description: item.visibleDescription,
-      visibleDescription: item.visibleDescription,
-      location: type === "lost" ? item.locationLost : item.locationFound,
-      date: type === "lost" ? item.dateLost : item.dateFound,
-      images: item.images,
-      owner: type === "lost" ? item.ownerId : item.finderId,
-      status: item.status,
-      verificationData: item.verificationData,
-      type,
-      createdAt: item.createdAt,
-    };
-
+    const formatted = formatItem(item, type, req.user);
     res.json(formatted);
   } catch (err) {
     console.error("Get single item error:", err.message);
-    res.status(500).send("Server error");
-  }
-});
-
-// @route   GET api/items/my-lost
-// @desc    Get logged in user's reported lost items
-// @access  Private
-router.get("/my-lost", auth, async (req, res) => {
-  try {
-    const items = await LostItem.find({ ownerId: req.user.id }).sort({ createdAt: -1 });
-    res.json(items);
-  } catch (err) {
-    console.error("Get my lost items error:", err.message);
-    res.status(500).send("Server error");
-  }
-});
-
-// @route   GET api/items/my-found
-// @desc    Get logged in user's reported found items
-// @access  Private
-router.get("/my-found", auth, async (req, res) => {
-  try {
-    const items = await FoundItem.find({ finderId: req.user.id }).sort({ createdAt: -1 });
-    res.json(items);
-  } catch (err) {
-    console.error("Get my found items error:", err.message);
     res.status(500).send("Server error");
   }
 });
@@ -231,7 +226,7 @@ router.get("/my-found", auth, async (req, res) => {
 // @desc    Report a lost item
 // @access  Private
 router.post("/lost", auth, async (req, res) => {
-  const { title, category, subcategory, visibleDescription, locationLost, dateLost, images, verificationData } = req.body;
+  const { title, category, subcategory, visibleDescription, location, dateLost, publicImages, verificationImages, verificationData } = req.body;
 
   try {
     const newItem = new LostItem({
@@ -239,9 +234,10 @@ router.post("/lost", auth, async (req, res) => {
       category,
       subcategory,
       visibleDescription,
-      locationLost,
+      location: location || { public: "", private: "" },
       dateLost,
-      images: images ? (Array.isArray(images) ? images : [images]) : [],
+      publicImages: publicImages ? (Array.isArray(publicImages) ? publicImages : [publicImages]) : [],
+      verificationImages: verificationImages ? (Array.isArray(verificationImages) ? verificationImages : [verificationImages]) : [],
       ownerId: req.user.id,
       verificationData: verificationData || {},
     });
@@ -259,7 +255,7 @@ router.post("/lost", auth, async (req, res) => {
 // @desc    Report a found item
 // @access  Private
 router.post("/found", auth, async (req, res) => {
-  const { title, category, subcategory, visibleDescription, locationFound, dateFound, images, verificationData } = req.body;
+  const { title, category, subcategory, visibleDescription, location, dateFound, publicImages, verificationImages, verificationData } = req.body;
 
   try {
     const newItem = new FoundItem({
@@ -267,9 +263,10 @@ router.post("/found", auth, async (req, res) => {
       category,
       subcategory,
       visibleDescription,
-      locationFound,
+      location: location || { public: "", private: "" },
       dateFound,
-      images: images ? (Array.isArray(images) ? images : [images]) : [],
+      publicImages: publicImages ? (Array.isArray(publicImages) ? publicImages : [publicImages]) : [],
+      verificationImages: verificationImages ? (Array.isArray(verificationImages) ? verificationImages : [verificationImages]) : [],
       finderId: req.user.id,
       verificationData: verificationData || {},
     });

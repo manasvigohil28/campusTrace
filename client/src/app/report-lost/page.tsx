@@ -21,9 +21,14 @@ export default function ReportLostPage() {
   const [category, setCategory] = useState(Object.keys(CATEGORY_MAP)[0]);
   const [subcategory, setSubcategory] = useState(CATEGORY_MAP[Object.keys(CATEGORY_MAP)[0]][0]);
   const [description, setDescription] = useState("");
-  const [locationLost, setLocationLost] = useState("");
+  const [publicLocationLost, setPublicLocationLost] = useState("");
+  const [privateLocationLost, setPrivateLocationLost] = useState("");
   const [dateLost, setDateLost] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
+  const [publicImageUrl, setPublicImageUrl] = useState("");
+  const [verificationImageUrl, setVerificationImageUrl] = useState("");
+  const [publicImagePreviewError, setPublicImagePreviewError] = useState(false);
+  const [verificationImagePreviewError, setVerificationImagePreviewError] = useState(false);
+  const [freeTextDescription, setFreeTextDescription] = useState("");
   const [verificationData, setVerificationData] = useState<Record<string, any>>({});
   
   const [error, setError] = useState("");
@@ -66,13 +71,23 @@ export default function ReportLostPage() {
     setError("");
     setSuccess(false);
 
-    if (!title || !category || !subcategory || !description || !locationLost || !dateLost) {
+    if (!title || !category || !subcategory || !description || !publicLocationLost || !privateLocationLost || !dateLost) {
       setError("Please fill in all required fields.");
       return;
     }
 
     if (!isStep4Valid()) {
       setError("Please fill in all required verification fields.");
+      return;
+    }
+
+    if (publicImageUrl && !publicImageUrl.startsWith("http://") && !publicImageUrl.startsWith("https://")) {
+      setError("Please provide a valid public image URL starting with http:// or https://");
+      return;
+    }
+
+    if (verificationImageUrl && !verificationImageUrl.startsWith("http://") && !verificationImageUrl.startsWith("https://")) {
+      setError("Please provide a valid verification image URL starting with http:// or https://");
       return;
     }
 
@@ -90,10 +105,17 @@ export default function ReportLostPage() {
           category,
           subcategory,
           visibleDescription: description,
-          locationLost,
+          location: {
+            public: publicLocationLost,
+            private: privateLocationLost
+          },
           dateLost: new Date(dateLost),
-          images: imageUrl ? [imageUrl] : [],
-          verificationData
+          publicImages: publicImageUrl ? [publicImageUrl] : [],
+          verificationImages: verificationImageUrl ? [verificationImageUrl] : [],
+          verificationData: {
+            ...verificationData,
+            freeTextDescription
+          }
         }),
       });
 
@@ -291,20 +313,39 @@ export default function ReportLostPage() {
                     transition={{ duration: 0.25 }}
                     className="space-y-5"
                   >
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold text-ct-text-secondary uppercase tracking-wider block">
-                        Last Seen Location *
-                      </label>
-                      <div className="relative flex items-center">
-                        <MapPin className="absolute left-4 w-4.5 h-4.5 text-ct-text-muted" />
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. Science Library 2nd floor desk, Gym lockers, Café lounge"
-                          value={locationLost}
-                          onChange={(e) => setLocationLost(e.target.value)}
-                          className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl py-3 pl-12 pr-4 text-sm text-ct-text-primary placeholder:text-ct-text-muted focus:border-ct-blue/50 focus:bg-white/[0.05] focus:outline-none transition-all"
-                        />
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-ct-text-secondary uppercase tracking-wider block">
+                          General Location / Area *
+                        </label>
+                        <div className="relative flex items-center">
+                          <MapPin className="absolute left-4 w-4.5 h-4.5 text-ct-text-muted" />
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. Science Library, Gym, Student Center"
+                            value={publicLocationLost}
+                            onChange={(e) => setPublicLocationLost(e.target.value)}
+                            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl py-3 pl-12 pr-4 text-sm text-ct-text-primary placeholder:text-ct-text-muted focus:border-ct-blue/50 focus:bg-white/[0.05] focus:outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-ct-text-secondary uppercase tracking-wider block">
+                          Exact Spot / Room (Hidden from public) *
+                        </label>
+                        <div className="relative flex items-center">
+                          <MapPin className="absolute left-4 w-4.5 h-4.5 text-ct-text-muted" />
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. 2nd floor study cubicle desk, locker 45"
+                            value={privateLocationLost}
+                            onChange={(e) => setPrivateLocationLost(e.target.value)}
+                            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl py-3 pl-12 pr-4 text-sm text-ct-text-primary placeholder:text-ct-text-muted focus:border-ct-blue/50 focus:bg-white/[0.05] focus:outline-none transition-all"
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -336,35 +377,83 @@ export default function ReportLostPage() {
                     transition={{ duration: 0.25 }}
                     className="space-y-5"
                   >
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold text-ct-text-secondary uppercase tracking-wider block">
-                        Image URL (Optional)
-                      </label>
-                      <div className="relative flex items-center">
-                        <ImageIcon className="absolute left-4 w-4.5 h-4.5 text-ct-text-muted" />
-                        <input
-                          type="url"
-                          placeholder="e.g. https://example.com/my-lost-item-photo.jpg"
-                          value={imageUrl}
-                          onChange={(e) => setImageUrl(e.target.value)}
-                          className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl py-3 pl-12 pr-4 text-sm text-ct-text-primary placeholder:text-ct-text-muted focus:border-ct-blue/50 focus:outline-none transition-all"
-                        />
+                    <div className="space-y-4">
+                      {/* Public Image URL */}
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-ct-text-secondary uppercase tracking-wider block">
+                          Public Image URL (Optional - visible to everyone)
+                        </label>
+                        <div className="relative flex items-center">
+                          <ImageIcon className="absolute left-4 w-4.5 h-4.5 text-ct-text-muted" />
+                          <input
+                            type="url"
+                            placeholder="e.g. https://example.com/backpack-public.jpg"
+                            value={publicImageUrl}
+                            onChange={(e) => {
+                              setPublicImageUrl(e.target.value);
+                              setPublicImagePreviewError(false);
+                            }}
+                            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl py-3 pl-12 pr-4 text-sm text-ct-text-primary placeholder:text-ct-text-muted focus:border-ct-blue/50 focus:outline-none transition-all"
+                          />
+                        </div>
                       </div>
-                    </div>
 
-                    {imageUrl && (
-                      <div className="mt-4 p-2 rounded-2xl bg-white/[0.02] border border-white/[0.06] w-fit mx-auto">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={imageUrl}
-                          alt="Item Preview"
-                          className="max-h-48 rounded-xl object-contain bg-black/20"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = "none";
-                          }}
-                        />
+                      {publicImageUrl && (
+                        <div className="mt-2 p-2 rounded-2xl bg-white/[0.02] border border-white/[0.06] w-fit mx-auto text-center">
+                          {!publicImagePreviewError ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={publicImageUrl}
+                              alt="Public Preview"
+                              className="max-h-36 rounded-xl object-contain bg-black/20 mx-auto"
+                              onError={() => setPublicImagePreviewError(true)}
+                            />
+                          ) : (
+                            <div className="p-2 text-[10px] text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+                              ⚠️ Invalid public image URL. Please copy a direct image link.
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Verification Image URL */}
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-ct-text-secondary uppercase tracking-wider block">
+                          Verification Image URL (Optional - hidden from claimants, shown to admin/finder)
+                        </label>
+                        <div className="relative flex items-center">
+                          <ImageIcon className="absolute left-4 w-4.5 h-4.5 text-ct-text-muted" />
+                          <input
+                            type="url"
+                            placeholder="e.g. https://example.com/backpack-serial-number.jpg"
+                            value={verificationImageUrl}
+                            onChange={(e) => {
+                              setVerificationImageUrl(e.target.value);
+                              setVerificationImagePreviewError(false);
+                            }}
+                            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl py-3 pl-12 pr-4 text-sm text-ct-text-primary placeholder:text-ct-text-muted focus:border-ct-blue/50 focus:outline-none transition-all"
+                          />
+                        </div>
                       </div>
-                    )}
+
+                      {verificationImageUrl && (
+                        <div className="mt-2 p-2 rounded-2xl bg-white/[0.02] border border-white/[0.06] w-fit mx-auto text-center">
+                          {!verificationImagePreviewError ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={verificationImageUrl}
+                              alt="Verification Preview"
+                              className="max-h-36 rounded-xl object-contain bg-black/20 mx-auto"
+                              onError={() => setVerificationImagePreviewError(true)}
+                            />
+                          ) : (
+                            <div className="p-2 text-[10px] text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+                              ⚠️ Invalid verification image URL. Please copy a direct image link.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </motion.div>
                 )}
 
@@ -424,6 +513,20 @@ export default function ReportLostPage() {
                           )}
                         </div>
                       ))}
+
+                      {/* Free-text Detailed Description for NLP */}
+                      <div className="sm:col-span-2 space-y-1.5 mt-2">
+                        <label className="text-[11px] font-bold text-ct-text-secondary uppercase tracking-wider block">
+                          Detailed Narrative / Free-text Description (Optional)
+                        </label>
+                        <textarea
+                          rows={3}
+                          placeholder="Provide a detailed natural description of the item (e.g. 'Dark blue pencil case with some blue ink stains inside, containing a plastic ruler and a metal compass'). This will be used for secure AI ownership verification."
+                          value={freeTextDescription}
+                          onChange={(e) => setFreeTextDescription(e.target.value)}
+                          className="w-full bg-[#050816] border border-white/[0.06] rounded-xl py-2 px-3 text-xs text-ct-text-primary placeholder:text-ct-text-muted focus:border-ct-blue/50 focus:outline-none transition-all resize-none"
+                        />
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -452,8 +555,12 @@ export default function ReportLostPage() {
                         <span className="col-span-2 text-ct-text-primary">{category} &gt; {subcategory}</span>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
-                        <span className="text-ct-text-muted font-semibold">Location Seen:</span>
-                        <span className="col-span-2 text-ct-text-primary">{locationLost}</span>
+                        <span className="text-ct-text-muted font-semibold">General Location:</span>
+                        <span className="col-span-2 text-ct-text-primary">{publicLocationLost}</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <span className="text-ct-text-muted font-semibold">Exact Spot (Hidden):</span>
+                        <span className="col-span-2 text-ct-text-primary">{privateLocationLost}</span>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         <span className="text-ct-text-muted font-semibold">Date Lost:</span>
@@ -497,10 +604,25 @@ export default function ReportLostPage() {
                 {step < 5 ? (
                   <button
                     type="button"
-                    onClick={() => setStep(prev => prev + 1)}
+                    onClick={() => {
+                      if (step === 3 && publicImageUrl && !publicImageUrl.startsWith("http://") && !publicImageUrl.startsWith("https://")) {
+                        setError("Please enter a valid public image URL starting with http:// or https://");
+                        return;
+                      }
+                      if (step === 3 && verificationImageUrl && !verificationImageUrl.startsWith("http://") && !verificationImageUrl.startsWith("https://")) {
+                        setError("Please enter a valid verification image URL starting with http:// or https://");
+                        return;
+                      }
+                      setError("");
+                      setStep(prev => prev + 1);
+                    }}
                     disabled={
                       (step === 1 && !title) ||
-                      (step === 2 && (!locationLost || !dateLost)) ||
+                      (step === 2 && (!publicLocationLost || !privateLocationLost || !dateLost)) ||
+                      (step === 3 && (
+                        (publicImageUrl !== "" && !publicImageUrl.startsWith("http://") && !publicImageUrl.startsWith("https://")) ||
+                        (verificationImageUrl !== "" && !verificationImageUrl.startsWith("http://") && !verificationImageUrl.startsWith("https://"))
+                      )) ||
                       (step === 4 && !isStep4Valid())
                     }
                     className="px-5 py-2.5 rounded-xl bg-ct-indigo hover:bg-ct-blue text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-30 disabled:cursor-not-allowed"

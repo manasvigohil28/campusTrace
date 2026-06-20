@@ -17,6 +17,7 @@ export default function ItemDetailPage() {
   const [item, setItem] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [imgErr, setImgErr] = useState(false);
 
   // Claim Form State
   const [claimVerificationData, setClaimVerificationData] = useState<Record<string, any>>({});
@@ -161,12 +162,32 @@ export default function ItemDetailPage() {
             
             {/* LEFT: IMAGE GALLERY */}
             <div className="glass-strong rounded-3xl overflow-hidden border border-white/[0.08] p-4 bg-black/40 shadow-xl flex flex-col items-center justify-center min-h-[350px]">
-              {item.images && item.images[0] ? (
+              {item.imagesHidden ? (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-black/60 relative backdrop-blur-md py-20 rounded-2xl">
+                  {item.images && item.images[0] && !imgErr ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.images[0]}
+                      alt={item.title}
+                      className="absolute inset-0 w-full h-full object-contain opacity-25 blur-md"
+                      onError={() => setImgErr(true)}
+                    />
+                  ) : null}
+                  <div className="z-10 flex flex-col items-center gap-2 text-center px-4">
+                    <EyeOff className="w-8 h-8 text-ct-cyan animate-pulse" />
+                    <span className="text-xs font-bold text-ct-cyan uppercase tracking-wider">🔒 Images Blurred for Verification</span>
+                    <span className="text-[10px] text-ct-text-muted max-w-xs leading-relaxed mt-1">
+                      Verification images for found items are hidden from public viewing. The claimant must prove ownership to view all photos.
+                    </span>
+                  </div>
+                </div>
+              ) : item.images && item.images[0] && !imgErr ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={item.images[0]}
                   alt={item.title}
                   className="w-full rounded-2xl max-h-[400px] object-contain bg-black/20"
+                  onError={() => setImgErr(true)}
                 />
               ) : (
                 <div className="text-ct-text-muted flex flex-col items-center gap-2 py-20">
@@ -225,7 +246,11 @@ export default function ItemDetailPage() {
                     <MapPin className="w-4 h-4 text-ct-cyan" />
                     <span>Location:</span>
                   </span>
-                  <span className="font-bold text-ct-text-primary text-[12px]">{item.location}</span>
+                  <span className="font-bold text-ct-text-primary text-[12px]">
+                    {item.location && typeof item.location === "object"
+                      ? `${item.location.public}${item.location.private ? ` (Spot: ${item.location.private})` : ""}`
+                      : item.location || "Unknown"}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between py-1 border-b border-white/[0.02]">
                   <span className="flex items-center gap-1.5 text-ct-text-muted">

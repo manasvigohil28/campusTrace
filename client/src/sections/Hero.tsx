@@ -127,12 +127,14 @@ export default function Hero() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className="flex-1 bg-transparent text-ct-text-primary placeholder:text-ct-text-muted text-sm md:text-base outline-none"
+                suppressHydrationWarning={true}
               />
               <motion.button
                 type="submit"
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-ct-indigo to-ct-blue text-white text-sm font-medium shadow-[0_4px_15px_rgba(99,102,241,0.25)] hover:shadow-[0_4px_25px_rgba(99,102,241,0.4)] transition-shadow duration-300 cursor-pointer"
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
+                suppressHydrationWarning={true}
               >
                 <Sparkles className="w-4 h-4" />
                 <span className="hidden sm:inline">AI Search</span>

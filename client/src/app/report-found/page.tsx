@@ -21,9 +21,14 @@ export default function ReportFoundPage() {
   const [category, setCategory] = useState(Object.keys(CATEGORY_MAP)[0]);
   const [subcategory, setSubcategory] = useState(CATEGORY_MAP[Object.keys(CATEGORY_MAP)[0]][0]);
   const [description, setDescription] = useState("");
-  const [locationFound, setLocationFound] = useState("");
+  const [publicLocationFound, setPublicLocationFound] = useState("");
+  const [privateLocationFound, setPrivateLocationFound] = useState("");
   const [dateFound, setDateFound] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
+  const [publicImageUrl, setPublicImageUrl] = useState("");
+  const [verificationImageUrl, setVerificationImageUrl] = useState("");
+  const [publicImagePreviewError, setPublicImagePreviewError] = useState(false);
+  const [verificationImagePreviewError, setVerificationImagePreviewError] = useState(false);
+  const [freeTextDescription, setFreeTextDescription] = useState("");
   const [verificationData, setVerificationData] = useState<Record<string, any>>({});
   
   // Visibility Settings
@@ -70,13 +75,23 @@ export default function ReportFoundPage() {
     setError("");
     setSuccess(false);
 
-    if (!title || !category || !subcategory || !description || !locationFound || !dateFound) {
+    if (!title || !category || !subcategory || !description || !publicLocationFound || !privateLocationFound || !dateFound) {
       setError("Please fill in all required fields.");
       return;
     }
 
     if (!isStep4Valid()) {
       setError("Please fill in all required verification fields.");
+      return;
+    }
+
+    if (publicImageUrl && !publicImageUrl.startsWith("http://") && !publicImageUrl.startsWith("https://")) {
+      setError("Please provide a valid public image URL starting with http:// or https://");
+      return;
+    }
+
+    if (verificationImageUrl && !verificationImageUrl.startsWith("http://") && !verificationImageUrl.startsWith("https://")) {
+      setError("Please provide a valid verification image URL starting with http:// or https://");
       return;
     }
 
@@ -94,13 +109,16 @@ export default function ReportFoundPage() {
           category,
           subcategory,
           visibleDescription: description,
-          locationFound,
+          location: {
+            public: publicLocationFound,
+            private: privateLocationFound
+          },
           dateFound: new Date(dateFound),
-          images: imageUrl ? [imageUrl] : [],
+          publicImages: publicImageUrl ? [publicImageUrl] : [],
+          verificationImages: verificationImageUrl ? [verificationImageUrl] : [],
           verificationData: {
             ...verificationData,
-            hideVerification,
-            enableAIVerification
+            freeTextDescription
           }
         }),
       });
@@ -299,20 +317,39 @@ export default function ReportFoundPage() {
                     transition={{ duration: 0.25 }}
                     className="space-y-5"
                   >
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold text-ct-text-secondary uppercase tracking-wider block">
-                        Location Found *
-                      </label>
-                      <div className="relative flex items-center">
-                        <MapPin className="absolute left-4 w-4.5 h-4.5 text-ct-text-muted" />
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. Science Library 2nd floor desk, Gym benches"
-                          value={locationFound}
-                          onChange={(e) => setLocationFound(e.target.value)}
-                          className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl py-3 pl-12 pr-4 text-sm text-ct-text-primary placeholder:text-ct-text-muted focus:border-ct-blue/50 focus:bg-white/[0.05] focus:outline-none transition-all"
-                        />
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-ct-text-secondary uppercase tracking-wider block">
+                          General Location / Area *
+                        </label>
+                        <div className="relative flex items-center">
+                          <MapPin className="absolute left-4 w-4.5 h-4.5 text-ct-text-muted" />
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. Science Library, Gym, Student Center"
+                            value={publicLocationFound}
+                            onChange={(e) => setPublicLocationFound(e.target.value)}
+                            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl py-3 pl-12 pr-4 text-sm text-ct-text-primary placeholder:text-ct-text-muted focus:border-ct-blue/50 focus:bg-white/[0.05] focus:outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-ct-text-secondary uppercase tracking-wider block">
+                          Exact Spot / Room (Hidden from public) *
+                        </label>
+                        <div className="relative flex items-center">
+                          <MapPin className="absolute left-4 w-4.5 h-4.5 text-ct-text-muted" />
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. 2nd floor study cubicle desk, locker 45"
+                            value={privateLocationFound}
+                            onChange={(e) => setPrivateLocationFound(e.target.value)}
+                            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl py-3 pl-12 pr-4 text-sm text-ct-text-primary placeholder:text-ct-text-muted focus:border-ct-blue/50 focus:bg-white/[0.05] focus:outline-none transition-all"
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -344,35 +381,83 @@ export default function ReportFoundPage() {
                     transition={{ duration: 0.25 }}
                     className="space-y-5"
                   >
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold text-ct-text-secondary uppercase tracking-wider block">
-                        Image URL (Optional)
-                      </label>
-                      <div className="relative flex items-center">
-                        <ImageIcon className="absolute left-4 w-4.5 h-4.5 text-ct-text-muted" />
-                        <input
-                          type="url"
-                          placeholder="e.g. https://example.com/item-photo.jpg"
-                          value={imageUrl}
-                          onChange={(e) => setImageUrl(e.target.value)}
-                          className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl py-3 pl-12 pr-4 text-sm text-ct-text-primary placeholder:text-ct-text-muted focus:border-ct-blue/50 focus:outline-none transition-all"
-                        />
+                    <div className="space-y-4">
+                      {/* Public Image URL */}
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-ct-text-secondary uppercase tracking-wider block">
+                          Public Image URL (Optional - visible to everyone)
+                        </label>
+                        <div className="relative flex items-center">
+                          <ImageIcon className="absolute left-4 w-4.5 h-4.5 text-ct-text-muted" />
+                          <input
+                            type="url"
+                            placeholder="e.g. https://example.com/backpack-public.jpg"
+                            value={publicImageUrl}
+                            onChange={(e) => {
+                              setPublicImageUrl(e.target.value);
+                              setPublicImagePreviewError(false);
+                            }}
+                            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl py-3 pl-12 pr-4 text-sm text-ct-text-primary placeholder:text-ct-text-muted focus:border-ct-blue/50 focus:outline-none transition-all"
+                          />
+                        </div>
                       </div>
-                    </div>
 
-                    {imageUrl && (
-                      <div className="mt-4 p-2 rounded-2xl bg-white/[0.02] border border-white/[0.06] w-fit mx-auto">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={imageUrl}
-                          alt="Found Item Preview"
-                          className="max-h-48 rounded-xl object-contain bg-black/20"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = "none";
-                          }}
-                        />
+                      {publicImageUrl && (
+                        <div className="mt-2 p-2 rounded-2xl bg-white/[0.02] border border-white/[0.06] w-fit mx-auto text-center">
+                          {!publicImagePreviewError ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={publicImageUrl}
+                              alt="Public Preview"
+                              className="max-h-36 rounded-xl object-contain bg-black/20 mx-auto"
+                              onError={() => setPublicImagePreviewError(true)}
+                            />
+                          ) : (
+                            <div className="p-2 text-[10px] text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+                              ⚠️ Invalid public image URL. Please copy a direct image link.
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Verification Image URL */}
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-ct-text-secondary uppercase tracking-wider block">
+                          Verification Image URL (Optional - hidden from claimants, shown to admin/finder)
+                        </label>
+                        <div className="relative flex items-center">
+                          <ImageIcon className="absolute left-4 w-4.5 h-4.5 text-ct-text-muted" />
+                          <input
+                            type="url"
+                            placeholder="e.g. https://example.com/backpack-serial-number.jpg"
+                            value={verificationImageUrl}
+                            onChange={(e) => {
+                              setVerificationImageUrl(e.target.value);
+                              setVerificationImagePreviewError(false);
+                            }}
+                            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl py-3 pl-12 pr-4 text-sm text-ct-text-primary placeholder:text-ct-text-muted focus:border-ct-blue/50 focus:outline-none transition-all"
+                          />
+                        </div>
                       </div>
-                    )}
+
+                      {verificationImageUrl && (
+                        <div className="mt-2 p-2 rounded-2xl bg-white/[0.02] border border-white/[0.06] w-fit mx-auto text-center">
+                          {!verificationImagePreviewError ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={verificationImageUrl}
+                              alt="Verification Preview"
+                              className="max-h-36 rounded-xl object-contain bg-black/20 mx-auto"
+                              onError={() => setVerificationImagePreviewError(true)}
+                            />
+                          ) : (
+                            <div className="p-2 text-[10px] text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+                              ⚠️ Invalid verification image URL. Please copy a direct image link.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </motion.div>
                 )}
 
@@ -388,7 +473,7 @@ export default function ReportFoundPage() {
                   >
                     <div className="p-4 rounded-xl bg-ct-blue/5 border border-ct-blue/20 mb-2">
                       <p className="text-xs text-ct-text-secondary leading-relaxed">
-                        Specify verification details that the owner must answer to claim this item.
+                        Specify verification details. These fields will be hidden and used to verify claims side-by-side.
                       </p>
                     </div>
 
@@ -432,45 +517,21 @@ export default function ReportFoundPage() {
                           )}
                         </div>
                       ))}
-                    </div>
 
-                    {/* Visibility Settings */}
-                    <div className="pt-4 mt-4 border-t border-white/[0.05] space-y-3">
-                      <h4 className="text-[11px] font-bold text-ct-cyan uppercase tracking-wider block">Visibility Settings</h4>
-                      
-                      <label className="flex items-start gap-3 cursor-pointer text-xs text-ct-text-secondary select-none">
-                        <input
-                          type="checkbox"
-                          checked={hideVerification}
-                          onChange={(e) => setHideVerification(e.target.checked)}
-                          className="mt-0.5 w-4 h-4 rounded border-white/20 bg-ct-bg-surface text-ct-blue focus:ring-ct-blue"
+                      {/* Free-text Detailed Description for NLP */}
+                      <div className="sm:col-span-2 space-y-1.5 mt-2">
+                        <label className="text-[11px] font-bold text-ct-text-secondary uppercase tracking-wider block">
+                          Detailed Narrative / Free-text Description (Optional)
+                        </label>
+                        <textarea
+                          rows={3}
+                          placeholder="Provide a detailed natural description of the item (e.g. 'Dark blue pencil case with some blue ink stains inside, containing a plastic ruler and a metal compass'). This will be used for secure AI ownership verification."
+                          value={freeTextDescription}
+                          onChange={(e) => setFreeTextDescription(e.target.value)}
+                          className="w-full bg-[#050816] border border-white/[0.06] rounded-xl py-2 px-3 text-xs text-ct-text-primary placeholder:text-ct-text-muted focus:border-ct-blue/50 focus:outline-none transition-all resize-none"
                         />
-                        <div>
-                          <p className="font-bold text-ct-text-primary flex items-center gap-1">
-                            <EyeOff className="w-3.5 h-3.5 text-ct-cyan" />
-                            <span>Hide verification answers</span>
-                          </p>
-                          <p className="text-[10px] text-ct-text-muted mt-0.5">Keeps questionnaire answers secure; claimants will have to type answers blindly.</p>
-                        </div>
-                      </label>
-
-                      <label className="flex items-start gap-3 cursor-pointer text-xs text-ct-text-secondary select-none">
-                        <input
-                          type="checkbox"
-                          checked={enableAIVerification}
-                          onChange={(e) => setEnableAIVerification(e.target.checked)}
-                          className="mt-0.5 w-4 h-4 rounded border-white/20 bg-ct-bg-surface text-ct-blue focus:ring-ct-blue"
-                        />
-                        <div>
-                          <p className="font-bold text-ct-text-primary flex items-center gap-1">
-                            <ShieldCheck className="w-3.5 h-3.5 text-green-400" />
-                            <span>Enable AI verification engine</span>
-                          </p>
-                          <p className="text-[10px] text-ct-text-muted mt-0.5">Automatically calculates similarity match scores on submitted claims.</p>
-                        </div>
-                      </label>
+                      </div>
                     </div>
-
                   </motion.div>
                 )}
 
@@ -498,8 +559,12 @@ export default function ReportFoundPage() {
                         <span className="col-span-2 text-ct-text-primary">{category} &gt; {subcategory}</span>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
-                        <span className="text-ct-text-muted font-semibold">Location Found:</span>
-                        <span className="col-span-2 text-ct-text-primary">{locationFound}</span>
+                        <span className="text-ct-text-muted font-semibold">General Location:</span>
+                        <span className="col-span-2 text-ct-text-primary">{publicLocationFound}</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <span className="text-ct-text-muted font-semibold">Exact Spot (Hidden):</span>
+                        <span className="col-span-2 text-ct-text-primary">{privateLocationFound}</span>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         <span className="text-ct-text-muted font-semibold">Date Found:</span>
@@ -511,17 +576,13 @@ export default function ReportFoundPage() {
                       </div>
                       
                       <div className="p-4 rounded-xl bg-white/[0.01] border border-white/[0.04] mt-4 space-y-2">
-                        <p className="text-[10px] font-bold text-ct-cyan uppercase tracking-wider">Verification parameters &amp; answers:</p>
+                        <p className="text-[10px] font-bold text-ct-cyan uppercase tracking-wider">Hidden Verification Answers:</p>
                         {Object.entries(verificationData).map(([key, val]) => (
                           <div key={key} className="flex justify-between items-center text-[11px] py-1 border-b border-white/[0.02]">
                             <span className="text-ct-text-muted capitalize">{key}:</span>
                             <span className="text-ct-text-primary font-semibold">{String(val)}</span>
                           </div>
                         ))}
-                        <div className="pt-2 flex flex-col gap-1 text-[10px] text-ct-text-muted">
-                          <p>• Hide Answers: {hideVerification ? "Yes" : "No"}</p>
-                          <p>• AI Verification: {enableAIVerification ? "Enabled" : "Disabled"}</p>
-                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -547,10 +608,25 @@ export default function ReportFoundPage() {
                 {step < 5 ? (
                   <button
                     type="button"
-                    onClick={() => setStep(prev => prev + 1)}
+                    onClick={() => {
+                      if (step === 3 && publicImageUrl && !publicImageUrl.startsWith("http://") && !publicImageUrl.startsWith("https://")) {
+                        setError("Please enter a valid public image URL starting with http:// or https://");
+                        return;
+                      }
+                      if (step === 3 && verificationImageUrl && !verificationImageUrl.startsWith("http://") && !verificationImageUrl.startsWith("https://")) {
+                        setError("Please enter a valid verification image URL starting with http:// or https://");
+                        return;
+                      }
+                      setError("");
+                      setStep(prev => prev + 1);
+                    }}
                     disabled={
                       (step === 1 && !title) ||
-                      (step === 2 && (!locationFound || !dateFound)) ||
+                      (step === 2 && (!publicLocationFound || !privateLocationFound || !dateFound)) ||
+                      (step === 3 && (
+                        (publicImageUrl !== "" && !publicImageUrl.startsWith("http://") && !publicImageUrl.startsWith("https://")) ||
+                        (verificationImageUrl !== "" && !verificationImageUrl.startsWith("http://") && !verificationImageUrl.startsWith("https://"))
+                      )) ||
                       (step === 4 && !isStep4Valid())
                     }
                     className="px-5 py-2.5 rounded-xl bg-ct-blue hover:bg-ct-blue-bright text-white text-ct-bg-deep font-bold transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-30 disabled:cursor-not-allowed"
