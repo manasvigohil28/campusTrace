@@ -164,6 +164,48 @@ export default function AdminPage() {
                 <StatCard icon={<CheckSquare className="w-5 h-5 text-green-400" />} value={stats.totalClaims} label="Claim Requests" />
               </div>
 
+              {/* AI SERVICE STATUS TELEMETRY WIDGET */}
+              <div className="glass-strong rounded-3xl p-5 border border-white/[0.06] shadow-md flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-ct-blue/10 border border-ct-blue/30 rounded-2xl flex items-center justify-center">
+                    <ShieldAlert className="w-5 h-5 text-ct-cyan animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-ct-text-primary">AI Ownership Verification Engine Status</h3>
+                    <p className="text-xs text-ct-text-secondary mt-0.5">
+                      Real-time status monitoring for our Sentence Transformer NLP microservice.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-6 text-xs">
+                  <div>
+                    <span className="text-[9px] text-ct-text-muted uppercase tracking-wider block font-bold">Health Status</span>
+                    <span className={`font-black mt-0.5 flex items-center gap-1.5 ${
+                      stats.aiStatus?.status === "online" ? "text-green-400 text-glow-blue animate-pulse" : "text-red-400"
+                    }`}>
+                      <span className={`w-2 h-2 rounded-full ${
+                        stats.aiStatus?.status === "online" ? "bg-green-400 animate-ping" : "bg-red-400"
+                      }`} />
+                      {stats.aiStatus?.status === "online" ? "Online" : "Offline"}
+                    </span>
+                  </div>
+
+                  {stats.aiStatus?.status === "online" && (
+                    <>
+                      <div>
+                        <span className="text-[9px] text-ct-text-muted uppercase tracking-wider block font-bold">Active NLP Model</span>
+                        <span className="font-semibold text-ct-text-primary mt-0.5 block">{stats.aiStatus.model}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-ct-text-muted uppercase tracking-wider block font-bold">Service Latency</span>
+                        <span className="font-semibold text-ct-cyan mt-0.5 block">{stats.aiStatus.latency}ms</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
               {/* CHARTS CONTAINER: Claims/Categories/Success Rate */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 

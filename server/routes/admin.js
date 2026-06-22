@@ -21,6 +21,29 @@ router.get("/stats", async (req, res) => {
     const totalFound = await FoundItem.countDocuments();
     const totalClaims = await Claim.countDocuments();
 
+    // Health check the Python AI service
+    let aiStatus = { status: "offline", model: null, latency: null };
+    const aiServiceUrl = process.env.AI_SERVICE_URL || "http://localhost:8000";
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1000);
+    const startMs = Date.now();
+
+    try {
+      const response = await fetch(`${aiServiceUrl}/health`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (response.ok) {
+        const data = await response.json();
+        const latency = Date.now() - startMs;
+        aiStatus = {
+          status: "online",
+          model: data.model || "all-MiniLM-L6-v2",
+          latency
+        };
+      }
+    } catch (err) {
+      clearTimeout(timeoutId);
+    }
+
     // Get recently created items
     const recentLost = await LostItem.find()
       .limit(5)
@@ -45,6 +68,7 @@ router.get("/stats", async (req, res) => {
         totalLost,
         totalFound,
         totalClaims,
+        aiStatus
       },
       recentLost,
       recentFound,

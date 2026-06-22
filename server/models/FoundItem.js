@@ -53,14 +53,8 @@ const FoundItemSchema = new mongoose.Schema({
     default: "active",
   },
   verificationData: {
-    color: String,
-    brand: String,
-    contents: {
-      type: [String],
-      default: [],
-    },
-    specialMarks: String,
-    freeTextDescription: String,
+    type: mongoose.Schema.Types.Mixed,
+    default: {},
   },
   isDeleted: {
     type: Boolean,

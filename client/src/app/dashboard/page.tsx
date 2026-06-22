@@ -10,6 +10,56 @@ import Footer from "@/sections/Footer";
 
 type Section = "overview" | "lost" | "found" | "submitted" | "received" | "settings";
 
+// Helper to resolve verification metrics
+const getResult = (claim: any) => {
+  const result = claim.verificationResult || {};
+  const score = typeof result.score === "number" ? result.score : 75;
+  const confidence = result.confidence || (score >= 80 ? "HIGH" : score >= 60 ? "MEDIUM" : "LOW");
+  const aiAvailable = result.aiAvailable !== false;
+  const earnedPoints = typeof result.earnedPoints === "number" ? result.earnedPoints : null;
+  const possiblePoints = typeof result.possiblePoints === "number" ? result.possiblePoints : null;
+  
+  const checkMatch = (val: number | null | undefined, maxVal: number) => {
+    if (val === null || val === undefined) return "N/A";
+    if (val === maxVal) return "Match ✓";
+    if (val > 0) return "Partial Match ~";
+    return "Mismatch ✗";
+  };
+
+  return {
+    score,
+    confidence,
+    aiAvailable,
+    earnedPoints,
+    possiblePoints,
+    colorScoreText: checkMatch(result.colorScore, 20),
+    brandScoreText: checkMatch(result.brandScore, 10),
+    contentsScoreText: checkMatch(result.contentsScore, 20),
+    locationScoreText: result.locationScore === null || result.locationScore === undefined ? "N/A" : checkMatch(result.locationScore, 20),
+    semanticSimilarity: typeof result.semanticSimilarity === "number" ? Math.round(result.semanticSimilarity * 100) : null,
+    matchedTerms: Array.isArray(result.matchedTerms) ? result.matchedTerms : []
+  };
+};
+
+function BreakdownItem({ label, status }: { label: string; status: string }) {
+  const isMatch = status.includes("✓") || (status.includes("Match") && !status.includes("Partial"));
+  const isPartial = status.includes("~") || status.includes("Partial");
+  const isNa = status === "N/A" || status.includes("N/A");
+  
+  return (
+    <div className="bg-black/25 p-2.5 rounded-xl border border-white/[0.03] text-center">
+      <span className="text-[8px] text-ct-text-muted block uppercase tracking-wider font-bold">{label}</span>
+      <span className={`font-extrabold mt-1 block text-[10px] ${
+        isNa ? "text-ct-text-muted opacity-40" :
+        isMatch ? "text-green-400 text-glow-blue" :
+        isPartial ? "text-yellow-400" : "text-red-400"
+      }`}>
+        {status}
+      </span>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { user, token, loading } = useAuth();
   const router = useRouter();
@@ -432,9 +482,7 @@ export default function DashboardPage() {
                       <div className="space-y-6">
                         {claimsReceived.map(claim => {
                           const isExpanded = expandedClaim === claim._id;
-                          const similarity = claim.itemId && claim.itemId.verificationData
-                            ? calculateSimilarityScore(claim.itemId.verificationData, claim.claimantVerificationData)
-                            : 0;
+                          const verify = getResult(claim);
 
                           return (
                             <div key={claim._id} className="glass-strong rounded-3xl p-5 border border-white/[0.06] flex flex-col gap-4 shadow-lg">
@@ -514,15 +562,53 @@ export default function DashboardPage() {
                                     <div className="flex items-center gap-2">
                                       <ShieldAlert className="w-4.5 h-4.5 text-ct-cyan animate-pulse" />
                                       <div>
-                                        <p className="text-xs font-bold text-ct-text-primary">AI Ownership Match Score</p>
-                                        <p className="text-[9px] text-ct-text-secondary mt-0.5">Calculated by checking exact word overlap and string similarities.</p>
+                                        <p className="text-xs font-bold text-ct-text-primary">AI Ownership Confidence Rating</p>
+                                        <p className="text-[9px] text-ct-text-secondary mt-0.5">
+                                          {verify.aiAvailable 
+                                            ? `Semantic matching confidence level: ${verify.confidence}` 
+                                            : "⚠️ AI Engine Offline - Fallback Manual Review Required"}
+                                        </p>
                                       </div>
                                     </div>
                                     <div className="text-right">
-                                      <span className={`text-lg font-black tracking-wide ${similarity >= 80 ? "text-green-400 text-glow-blue" : similarity >= 50 ? "text-yellow-400" : "text-red-400"}`}>
-                                        {similarity}% Similarity
+                                      <span className={`text-lg font-black tracking-wide ${
+                                        verify.confidence === "HIGH" ? "text-green-400 text-glow-blue" :
+                                        verify.confidence === "MEDIUM" ? "text-yellow-400" :
+                                        "text-red-400"
+                                      }`}>
+                                        {verify.score}% Confidence
                                       </span>
+                                      {verify.earnedPoints !== null && (
+                                        <p className="text-[9px] text-ct-text-muted mt-0.5">
+                                          ({verify.earnedPoints}/{verify.possiblePoints} pts normalized)
+                                        </p>
+                                      )}
                                     </div>
+                                  </div>
+
+                                  {/* Dynamic Verification Breakdown Metrics */}
+                                  <div className="p-4 bg-white/[0.02] border border-white/[0.04] rounded-2xl space-y-2 text-xs">
+                                    <h4 className="text-[10px] font-bold text-ct-cyan uppercase tracking-wider mb-2">Verification Checklist</h4>
+                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                                      <BreakdownItem label="Color Match" status={verify.colorScoreText} />
+                                      <BreakdownItem label="Brand Match" status={verify.brandScoreText} />
+                                      <BreakdownItem label="Contents Match" status={verify.contentsScoreText} />
+                                      <BreakdownItem label="Location Match" status={verify.locationScoreText} />
+                                      <BreakdownItem label="Semantic Similarity" status={verify.semanticSimilarity !== null ? `${verify.semanticSimilarity}%` : "N/A"} />
+                                    </div>
+                                    
+                                    {verify.matchedTerms.length > 0 && (
+                                      <div className="pt-3 border-t border-white/[0.04] mt-2">
+                                        <p className="text-[9px] font-bold text-ct-text-muted uppercase tracking-wider mb-1.5">Common Matching Concepts (Explanation Layer):</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {verify.matchedTerms.map((term: string) => (
+                                            <span key={term} className="px-2 py-0.5 rounded-lg bg-green-500/10 border border-green-500/25 text-green-400 text-[9px] font-bold">
+                                              ✓ {term}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
 
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

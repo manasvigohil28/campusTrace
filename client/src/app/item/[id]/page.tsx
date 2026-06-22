@@ -372,6 +372,20 @@ export default function ItemDetailPage() {
                             )}
                           </div>
                         ))}
+
+                        {/* Location Guess Field */}
+                        <div className="space-y-1.5 pt-2 border-t border-white/[0.04]">
+                          <label className="text-[10px] font-bold text-ct-text-secondary uppercase tracking-wider block">
+                            Where did you lose this item? (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Science Library 2nd floor study rooms, Student Gym"
+                            value={claimVerificationData.locationGuess || ""}
+                            onChange={(e) => handleClaimVerificationChange("locationGuess", e.target.value)}
+                            className="w-full bg-[#050816] border border-white/[0.06] rounded-xl p-3 text-xs text-ct-text-primary focus:outline-none focus:border-ct-blue/40"
+                          />
+                        </div>
                       </div>
                     </div>
 

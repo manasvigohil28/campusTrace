@@ -62,14 +62,8 @@ const ClaimSchema = new mongoose.Schema({
       }
     },
     verificationData: {
-      color: String,
-      brand: String,
-      contents: {
-        type: [String],
-        default: [],
-      },
-      specialMarks: String,
-      freeTextDescription: String,
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
     },
     createdAt: {
       type: Date,
@@ -79,23 +73,69 @@ const ClaimSchema = new mongoose.Schema({
   verificationResult: {
     score: {
       type: Number,
-      default: 75,
+      default: 0,
+    },
+    earnedPoints: {
+      type: Number,
+      default: 0,
+    },
+    possiblePoints: {
+      type: Number,
+      default: 0,
     },
     colorScore: {
       type: Number,
-      default: 25,
+      default: 0,
+    },
+    brandScore: {
+      type: Number,
+      default: 0,
     },
     contentsScore: {
       type: Number,
-      default: 25,
+      default: 0,
     },
     locationScore: {
       type: Number,
-      default: 25,
+      default: 0,
     },
     semanticScore: {
       type: Number,
-      default: 0,
+      default: null,
+    },
+    semanticSimilarity: {
+      type: Number,
+      default: null,
+    },
+    confidence: {
+      type: String,
+      enum: ["LOW", "MEDIUM", "HIGH"],
+      default: "LOW",
+    },
+    aiAvailable: {
+      type: Boolean,
+      default: true,
+    },
+    aiModel: {
+      type: String,
+      default: "all-MiniLM-L6-v2",
+    },
+    aiVersion: {
+      type: String,
+      default: "1.0",
+    },
+    aiMetadata: {
+      similarity: Number,
+      model: String,
+      timestamp: Date,
+    },
+    matchedTerms: {
+      type: [String],
+      default: [],
+    },
+    reviewedByHuman: {
+      type: Boolean,
+      default: false,
     },
     imageSimilarityScore: {
       type: Number,
