@@ -54,9 +54,15 @@ router.get("/:id/messages", auth, async (req, res) => {
     }
 
     // Verify participant
-    if (!conv.participants.includes(req.user.id)) {
+    if (!conv.participants.some(p => p.toString() === req.user.id)) {
       return res.status(403).json({ message: "Not authorized to view this chat." });
     }
+
+    // Mark incoming messages as read
+    await Message.updateMany(
+      { conversationId: req.params.id, senderId: { $ne: req.user.id }, read: false },
+      { $set: { read: true } }
+    );
 
     const messages = await Message.find({ conversationId: req.params.id })
       .populate("senderId", "name")
@@ -85,7 +91,7 @@ router.post("/:id/messages", auth, async (req, res) => {
     }
 
     // Verify participant
-    if (!conv.participants.includes(req.user.id)) {
+    if (!conv.participants.some(p => p.toString() === req.user.id)) {
       return res.status(403).json({ message: "Not authorized to send messages here." });
     }
 

@@ -16,7 +16,8 @@ const checkForMatches = async (newItem, type) => {
     const potentialMatches = await TargetModel.find({
       category: newItem.category,
       subcategory: newItem.subcategory,
-      status: "active"
+      status: "active",
+      isDeleted: { $ne: true }
     });
 
     const titleLower = newItem.title.toLowerCase();
@@ -132,7 +133,7 @@ const formatItem = (item, type, reqUser) => {
 // @access  Private
 router.get("/my-lost", auth, async (req, res) => {
   try {
-    const items = await LostItem.find({ ownerId: req.user.id }).sort({ createdAt: -1 });
+    const items = await LostItem.find({ ownerId: req.user.id, isDeleted: { $ne: true } }).sort({ createdAt: -1 });
     const formatted = items.map(item => formatItem(item, "lost", req.user));
     res.json(formatted);
   } catch (err) {
@@ -146,7 +147,7 @@ router.get("/my-lost", auth, async (req, res) => {
 // @access  Private
 router.get("/my-found", auth, async (req, res) => {
   try {
-    const items = await FoundItem.find({ finderId: req.user.id }).sort({ createdAt: -1 });
+    const items = await FoundItem.find({ finderId: req.user.id, isDeleted: { $ne: true } }).sort({ createdAt: -1 });
     const formatted = items.map(item => formatItem(item, "found", req.user));
     res.json(formatted);
   } catch (err) {
@@ -162,6 +163,11 @@ router.get("/all", optionalAuth, async (req, res) => {
   try {
     const { category, subcategory, location, status, q } = req.query;
     let filter = {};
+
+    const isAdmin = req.user && req.user.role === "admin";
+    if (!isAdmin) {
+      filter.isDeleted = { $ne: true };
+    }
 
     if (category) filter.category = category;
     if (subcategory) filter.subcategory = subcategory;
@@ -210,7 +216,7 @@ router.get("/:id", optionalAuth, async (req, res) => {
       type = "found";
     }
 
-    if (!item) {
+    if (!item || (item.isDeleted && (!req.user || req.user.role !== "admin"))) {
       return res.status(404).json({ message: "Item not found" });
     }
 
@@ -285,7 +291,7 @@ router.post("/found", auth, async (req, res) => {
 // @access  Private
 router.put("/lost/:id", auth, async (req, res) => {
   try {
-    let item = await LostItem.findById(req.params.id);
+    let item = await LostItem.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
     if (!item) {
       return res.status(404).json({ message: "Lost item not found." });
     }
@@ -307,7 +313,7 @@ router.put("/lost/:id", auth, async (req, res) => {
 // @access  Private
 router.put("/found/:id", auth, async (req, res) => {
   try {
-    let item = await FoundItem.findById(req.params.id);
+    let item = await FoundItem.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
     if (!item) {
       return res.status(404).json({ message: "Found item not found." });
     }
@@ -329,7 +335,7 @@ router.put("/found/:id", auth, async (req, res) => {
 // @access  Private
 router.delete("/lost/:id", auth, async (req, res) => {
   try {
-    const item = await LostItem.findById(req.params.id);
+    const item = await LostItem.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
     if (!item) {
       return res.status(404).json({ message: "Lost item not found." });
     }
@@ -338,7 +344,7 @@ router.delete("/lost/:id", auth, async (req, res) => {
       return res.status(403).json({ message: "User not authorized to delete this item." });
     }
 
-    await LostItem.findByIdAndDelete(req.params.id);
+    await LostItem.findByIdAndUpdate(req.params.id, { $set: { isDeleted: true, deletedAt: new Date() } });
     res.json({ message: "Lost item deleted." });
   } catch (err) {
     console.error("Delete lost item error:", err.message);
@@ -351,7 +357,7 @@ router.delete("/lost/:id", auth, async (req, res) => {
 // @access  Private
 router.delete("/found/:id", auth, async (req, res) => {
   try {
-    const item = await FoundItem.findById(req.params.id);
+    const item = await FoundItem.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
     if (!item) {
       return res.status(404).json({ message: "Found item not found." });
     }
@@ -360,7 +366,7 @@ router.delete("/found/:id", auth, async (req, res) => {
       return res.status(403).json({ message: "User not authorized to delete this item." });
     }
 
-    await FoundItem.findByIdAndDelete(req.params.id);
+    await FoundItem.findByIdAndUpdate(req.params.id, { $set: { isDeleted: true, deletedAt: new Date() } });
     res.json({ message: "Found item deleted." });
   } catch (err) {
     console.error("Delete found item error:", err.message);

@@ -76,6 +76,38 @@ const ClaimSchema = new mongoose.Schema({
       required: true,
     }
   },
+  verificationResult: {
+    score: {
+      type: Number,
+      default: 75,
+    },
+    colorScore: {
+      type: Number,
+      default: 25,
+    },
+    contentsScore: {
+      type: Number,
+      default: 25,
+    },
+    locationScore: {
+      type: Number,
+      default: 25,
+    },
+    semanticScore: {
+      type: Number,
+      default: 0,
+    },
+    imageSimilarityScore: {
+      type: Number,
+    }
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+  },
+  deletedAt: {
+    type: Date,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

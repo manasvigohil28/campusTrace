@@ -62,6 +62,13 @@ const FoundItemSchema = new mongoose.Schema({
     specialMarks: String,
     freeTextDescription: String,
   },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+  },
+  deletedAt: {
+    type: Date,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

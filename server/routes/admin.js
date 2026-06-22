@@ -84,12 +84,14 @@ router.delete("/users/:id", async (req, res) => {
       return res.status(404).json({ message: "User not found." });
     }
 
-    // Delete related items and claims
-    await LostItem.deleteMany({ ownerId: req.params.id });
-    await FoundItem.deleteMany({ finderId: req.params.id });
-    await Claim.deleteMany({
-      $or: [{ claimantId: req.params.id }, { finderId: req.params.id }],
-    });
+    // Soft delete related items and claims
+    const now = new Date();
+    await LostItem.updateMany({ ownerId: req.params.id }, { $set: { isDeleted: true, deletedAt: now } });
+    await FoundItem.updateMany({ finderId: req.params.id }, { $set: { isDeleted: true, deletedAt: now } });
+    await Claim.updateMany(
+      { $or: [{ claimantId: req.params.id }, { finderId: req.params.id }] },
+      { $set: { isDeleted: true, deletedAt: now } }
+    );
 
     await User.findByIdAndDelete(req.params.id);
     res.json({ message: "User account and all associated items/claims deleted successfully." });

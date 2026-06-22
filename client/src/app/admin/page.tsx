@@ -349,7 +349,7 @@ export default function AdminPage() {
                               claim.status === "rejected" ? "bg-red-500/10 border-red-500/30 text-red-400" :
                               "bg-yellow-500/10 border-yellow-500/30 text-yellow-400"
                             }`}>
-                              {claim.status}
+                              {claim.status === "approved" ? "Ownership Verified ✓" : claim.status}
                             </span>
                           </div>
                         ))

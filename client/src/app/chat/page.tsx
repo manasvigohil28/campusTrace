@@ -115,7 +115,7 @@ function ChatContent() {
     const interval = setInterval(() => {
       fetchMessages(true);
       fetchConversations(true);
-    }, 4000); // Poll every 4 seconds
+    }, 10000); // Poll every 10 seconds
 
     return () => clearInterval(interval);
   }, [token, activeConv?._id]);
@@ -366,6 +366,6 @@ export default function ChatPage() {
           <ChatContent />
         </Suspense>
       </div>
-    </div>
+    </>
   );
 }

@@ -61,7 +61,7 @@ router.post("/", auth, async (req, res) => {
     }
 
     // Check if user already has a pending active claim for this item
-    const existingClaim = await Claim.findOne({ itemId, claimantId: req.user.id, status: "pending" });
+    const existingClaim = await Claim.findOne({ itemId, claimantId: req.user.id, status: "pending", isDeleted: { $ne: true } });
     if (existingClaim) {
       return res.status(400).json({ message: "You already have a pending claim for this item." });
     }
@@ -102,7 +102,14 @@ router.post("/", auth, async (req, res) => {
       finderId: ownerOrFinderId,
       claimantVerificationData,
       status: "pending",
-      itemSnapshot
+      itemSnapshot,
+      verificationResult: {
+        score: 75,
+        colorScore: 25,
+        contentsScore: 25,
+        locationScore: 25,
+        semanticScore: 0
+      }
     });
 
     const claim = await newClaim.save();
@@ -138,7 +145,7 @@ router.post("/", auth, async (req, res) => {
 router.get("/", auth, async (req, res) => {
   try {
     // Submitted claims
-    const rawSubmitted = await Claim.find({ claimantId: req.user.id })
+    const rawSubmitted = await Claim.find({ claimantId: req.user.id, isDeleted: { $ne: true } })
       .populate("itemId")
       .populate("finderId", "name")
       .sort({ createdAt: -1 });
@@ -159,7 +166,7 @@ router.get("/", auth, async (req, res) => {
     }
 
     // Received claims
-    const rawReceived = await Claim.find({ finderId: req.user.id })
+    const rawReceived = await Claim.find({ finderId: req.user.id, isDeleted: { $ne: true } })
       .populate("itemId")
       .populate("claimantId", "name")
       .sort({ createdAt: -1 });
@@ -197,7 +204,7 @@ router.put("/:id", auth, async (req, res) => {
   }
 
   try {
-    const claim = await Claim.findById(req.params.id);
+    const claim = await Claim.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
     if (!claim) {
       return res.status(404).json({ message: "Claim not found." });
     }

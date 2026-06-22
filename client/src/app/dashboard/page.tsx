@@ -371,7 +371,7 @@ export default function DashboardPage() {
                                     claim.status === "approved" ? "bg-green-500/10 border-green-500/30 text-green-400" :
                                     "bg-red-500/10 border-red-500/30 text-red-400"
                                   }`}>
-                                    {claim.status}
+                                    {claim.status === "approved" ? "Ownership Verified ✓" : claim.status}
                                   </span>
                                 </div>
                                 
@@ -396,7 +396,7 @@ export default function DashboardPage() {
                                       </Link>
                                     ) : (
                                       <p className="text-green-400 font-semibold flex items-center gap-1">
-                                        <Check className="w-3.5 h-3.5" /> Approved! Chatting channel initializing...
+                                        <Check className="w-3.5 h-3.5" /> Ownership Verified! Chatting channel initializing...
                                       </p>
                                     )}
                                   </div>
@@ -451,7 +451,7 @@ export default function DashboardPage() {
                                       claim.status === "approved" ? "bg-green-500/10 border-green-500/30 text-green-400" :
                                       "bg-red-500/10 border-red-500/30 text-red-400"
                                     }`}>
-                                      {claim.status}
+                                      {claim.status === "approved" ? "Ownership Verified ✓" : claim.status}
                                     </span>
                                   </div>
 
