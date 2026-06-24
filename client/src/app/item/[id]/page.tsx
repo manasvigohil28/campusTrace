@@ -69,7 +69,12 @@ export default function ItemDetailPage() {
     setClaimSuccess("");
 
     // Validate that all required verification fields are filled
-    const fields = VERIFICATION_FIELDS[item.category] || [];
+    const fields = (VERIFICATION_FIELDS[item.category] || []).filter(f =>
+      item.verificationData &&
+      item.verificationData[f.name] !== undefined &&
+      item.verificationData[f.name] !== null &&
+      String(item.verificationData[f.name]).trim() !== ""
+    );
     for (const f of fields) {
       if (f.required && !claimVerificationData[f.name]) {
         setClaimError(`Please provide answer for: ${f.label}`);
@@ -333,59 +338,91 @@ export default function ItemDetailPage() {
                       </p>
 
                       <div className="space-y-3.5">
-                        {(VERIFICATION_FIELDS[item.category] || []).map((f) => (
-                          <div key={f.name} className="space-y-1.5">
+                        {(VERIFICATION_FIELDS[item.category] || [])
+                          .filter(f => 
+                            item.verificationData && 
+                            item.verificationData[f.name] !== undefined && 
+                            item.verificationData[f.name] !== null && 
+                            String(item.verificationData[f.name]).trim() !== ""
+                          )
+                          .map((f) => (
+                            <div key={f.name} className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-ct-text-secondary uppercase tracking-wider block">
+                                {f.label} {f.required && "*"}
+                              </label>
+                              
+                              {f.type === "textarea" ? (
+                                <textarea
+                                  required={f.required}
+                                  rows={2}
+                                  placeholder={f.placeholder}
+                                  value={claimVerificationData[f.name] || ""}
+                                  onChange={(e) => handleClaimVerificationChange(f.name, e.target.value)}
+                                  className="w-full bg-[#050816] border border-white/[0.06] rounded-xl p-3 text-xs text-ct-text-primary focus:outline-none focus:border-ct-blue/40 resize-none"
+                                />
+                              ) : f.type === "select" ? (
+                                <select
+                                  required={f.required}
+                                  value={claimVerificationData[f.name] || ""}
+                                  onChange={(e) => handleClaimVerificationChange(f.name, e.target.value)}
+                                  className="w-full bg-[#050816] border border-white/[0.06] rounded-xl p-3 text-xs text-ct-text-primary focus:outline-none focus:border-ct-blue/40 cursor-pointer"
+                                >
+                                  <option value="">-- Select Option --</option>
+                                  {f.options?.map(opt => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <input
+                                  type={f.type}
+                                  required={f.required}
+                                  placeholder={f.placeholder}
+                                  value={claimVerificationData[f.name] || ""}
+                                  onChange={(e) => handleClaimVerificationChange(f.name, e.target.value)}
+                                  className="w-full bg-[#050816] border border-white/[0.06] rounded-xl p-3 text-xs text-ct-text-primary focus:outline-none focus:border-ct-blue/40"
+                                />
+                              )}
+                            </div>
+                          ))}
+
+                        {/* Detailed Description Field */}
+                        {item.verificationData && 
+                         item.verificationData.freeTextDescription !== undefined && 
+                         item.verificationData.freeTextDescription !== null && 
+                         String(item.verificationData.freeTextDescription).trim() !== "" && (
+                          <div className="space-y-1.5 pt-2 border-t border-white/[0.04]">
                             <label className="text-[10px] font-bold text-ct-text-secondary uppercase tracking-wider block">
-                              {f.label} {f.required && "*"}
+                              Detailed Description of your item *
                             </label>
-                            
-                            {f.type === "textarea" ? (
-                              <textarea
-                                required={f.required}
-                                rows={2}
-                                placeholder={f.placeholder}
-                                value={claimVerificationData[f.name] || ""}
-                                onChange={(e) => handleClaimVerificationChange(f.name, e.target.value)}
-                                className="w-full bg-[#050816] border border-white/[0.06] rounded-xl p-3 text-xs text-ct-text-primary focus:outline-none focus:border-ct-blue/40 resize-none"
-                              />
-                            ) : f.type === "select" ? (
-                              <select
-                                required={f.required}
-                                value={claimVerificationData[f.name] || ""}
-                                onChange={(e) => handleClaimVerificationChange(f.name, e.target.value)}
-                                className="w-full bg-[#050816] border border-white/[0.06] rounded-xl p-3 text-xs text-ct-text-primary focus:outline-none focus:border-ct-blue/40 cursor-pointer"
-                              >
-                                <option value="">-- Select Option --</option>
-                                {f.options?.map(opt => (
-                                  <option key={opt} value={opt}>{opt}</option>
-                                ))}
-                              </select>
-                            ) : (
-                              <input
-                                type={f.type}
-                                required={f.required}
-                                placeholder={f.placeholder}
-                                value={claimVerificationData[f.name] || ""}
-                                onChange={(e) => handleClaimVerificationChange(f.name, e.target.value)}
-                                className="w-full bg-[#050816] border border-white/[0.06] rounded-xl p-3 text-xs text-ct-text-primary focus:outline-none focus:border-ct-blue/40"
-                              />
-                            )}
+                            <textarea
+                              required
+                              rows={3}
+                              placeholder="Provide a detailed description of the item in your own words (e.g. key markings, scratches, stickers, contents). This is used for semantic AI verification."
+                              value={claimVerificationData.freeTextDescription || ""}
+                              onChange={(e) => handleClaimVerificationChange("freeTextDescription", e.target.value)}
+                              className="w-full bg-[#050816] border border-white/[0.06] rounded-xl p-3 text-xs text-ct-text-primary focus:outline-none focus:border-ct-blue/40 resize-none"
+                            />
                           </div>
-                        ))}
+                        )}
 
                         {/* Location Guess Field */}
-                        <div className="space-y-1.5 pt-2 border-t border-white/[0.04]">
-                          <label className="text-[10px] font-bold text-ct-text-secondary uppercase tracking-wider block">
-                            Where did you lose this item? (Optional)
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Science Library 2nd floor study rooms, Student Gym"
-                            value={claimVerificationData.locationGuess || ""}
-                            onChange={(e) => handleClaimVerificationChange("locationGuess", e.target.value)}
-                            className="w-full bg-[#050816] border border-white/[0.06] rounded-xl p-3 text-xs text-ct-text-primary focus:outline-none focus:border-ct-blue/40"
-                          />
-                        </div>
+                        {item.location && 
+                         item.location.public !== undefined && 
+                         item.location.public !== null && 
+                         String(item.location.public).trim() !== "" && (
+                          <div className="space-y-1.5 pt-2 border-t border-white/[0.04]">
+                            <label className="text-[10px] font-bold text-ct-text-secondary uppercase tracking-wider block">
+                              Where did you lose this item? (Optional)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Science Library 2nd floor study rooms, Student Gym"
+                              value={claimVerificationData.locationGuess || ""}
+                              onChange={(e) => handleClaimVerificationChange("locationGuess", e.target.value)}
+                              className="w-full bg-[#050816] border border-white/[0.06] rounded-xl p-3 text-xs text-ct-text-primary focus:outline-none focus:border-ct-blue/40"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
 

@@ -12,7 +12,7 @@ const NotificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ["claim_received", "claim_approved", "claim_rejected", "match_found"],
+    enum: ["claim_received", "claim_approved", "claim_rejected", "match_found", "admin_warning", "general"],
     required: true,
   },
   read: {

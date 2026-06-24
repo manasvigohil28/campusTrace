@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const { MongoMemoryServer } = require("mongodb-memory-server");
+const seedDB = require("./seed");
 
 const connectDB = async () => {
   try {
@@ -13,6 +14,9 @@ const connectDB = async () => {
     
     await mongoose.connect(uri);
     console.log("MongoDB connected successfully!");
+    
+    // Seed the database
+    await seedDB();
   } catch (error) {
     console.error("MongoDB connection failed:", error.message);
     process.exit(1);

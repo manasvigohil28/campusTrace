@@ -14,6 +14,13 @@ const ConversationSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
   }],
+  isReported: {
+    type: Boolean,
+    default: false,
+  },
+  reportedAt: {
+    type: Date,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

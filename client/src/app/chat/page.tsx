@@ -120,6 +120,31 @@ function ChatContent() {
     return () => clearInterval(interval);
   }, [token, activeConv?._id]);
 
+  // Flag/Report Conversation
+  const handleFlagChat = async () => {
+    if (!activeConv || !token) return;
+    const reason = window.prompt("Reason for flagging this conversation (e.g. Abusive messages, Scam attempt, fake claim):");
+    if (!reason || !reason.trim()) return;
+
+    const description = window.prompt("Provide additional details/context (optional):") || "";
+
+    try {
+      const res = await fetch(`${API_URL}/conversations/${activeConv._id}/report`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ reason: reason.trim(), description: description.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to flag chat.");
+      alert("This conversation has been flagged and reported to administrators for safety review.");
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
   // Send message
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -257,10 +282,18 @@ function ChatContent() {
                     Handoff Item: {activeConv.itemTitle}
                   </p>
                 </div>
-                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-green-500/10 border border-green-500/30 text-green-400 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-green-400" />
-                  <span>Secure Handoff Channel</span>
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleFlagChat}
+                    className="px-2.5 py-1 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-[9px] font-bold hover:bg-red-500/20 cursor-pointer transition-colors"
+                  >
+                    Flag Chat
+                  </button>
+                  <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-green-500/10 border border-green-500/30 text-green-400 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-green-400" />
+                    <span>Secure Handoff Channel</span>
+                  </span>
+                </div>
               </div>
 
               {/* Messages feed */}

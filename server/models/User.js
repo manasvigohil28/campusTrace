@@ -19,8 +19,25 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ["user", "admin"],
+    enum: ["user", "admin", "super-admin"],
     default: "user",
+  },
+  status: {
+    type: String,
+    enum: ["active", "suspended", "banned", "shadow_banned"],
+    default: "active",
+  },
+  trustScore: {
+    type: Number,
+    default: 100,
+  },
+  riskScore: {
+    type: Number,
+    default: 0,
+  },
+  adminNotes: {
+    type: String,
+    default: "",
   },
   fraudFlags: {
     suspiciousClaims: {

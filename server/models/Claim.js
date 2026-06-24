@@ -30,6 +30,10 @@ const ClaimSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     required: true,
   },
+  claimVersion: {
+    type: Number,
+    default: 1,
+  },
   moderation: {
     notes: String,
     reviewedBy: {
@@ -109,8 +113,26 @@ const ClaimSchema = new mongoose.Schema({
     },
     confidence: {
       type: String,
-      enum: ["LOW", "MEDIUM", "HIGH"],
+      enum: ["LOW", "MEDIUM", "HIGH", "VERY_HIGH"],
       default: "LOW",
+    },
+    requiresAdminReview: {
+      type: Boolean,
+      default: false,
+    },
+    explanation: {
+      matchedFields: {
+        type: [String],
+        default: [],
+      },
+      partialMatches: {
+        type: [String],
+        default: [],
+      },
+      mismatches: {
+        type: [String],
+        default: [],
+      },
     },
     aiAvailable: {
       type: Boolean,
@@ -140,6 +162,10 @@ const ClaimSchema = new mongoose.Schema({
     imageSimilarityScore: {
       type: Number,
     }
+  },
+  adminNotes: {
+    type: String,
+    default: "",
   },
   isDeleted: {
     type: Boolean,

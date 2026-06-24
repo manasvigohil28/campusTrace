@@ -1,4 +1,5 @@
 const express = require("express");
+const User = require("../models/User");
 const LostItem = require("../models/LostItem");
 const FoundItem = require("../models/FoundItem");
 const Notification = require("../models/Notification");
@@ -111,6 +112,18 @@ const formatItem = (item, type, reqUser) => {
   } else {
     // Hidden fields
     formatted.verificationData = {};
+    if (item.verificationData) {
+      const vData = typeof item.verificationData.toObject === 'function'
+        ? item.verificationData.toObject()
+        : item.verificationData;
+      for (const [key, value] of Object.entries(vData)) {
+        if (key === "hideVerification" || key === "enableAIVerification") {
+          formatted.verificationData[key] = !!value;
+        } else if (value !== undefined && value !== null && String(value).trim() !== "") {
+          formatted.verificationData[key] = true;
+        }
+      }
+    }
     if (type === "found") {
       formatted.publicImages = item.publicImages || [];
       formatted.verificationImages = [];
@@ -164,7 +177,7 @@ router.get("/all", optionalAuth, async (req, res) => {
     const { category, subcategory, location, status, q } = req.query;
     let filter = {};
 
-    const isAdmin = req.user && req.user.role === "admin";
+    const isAdmin = req.user && (req.user.role === "admin" || req.user.role === "super-admin");
     if (!isAdmin) {
       filter.isDeleted = { $ne: true };
     }
@@ -189,8 +202,19 @@ router.get("/all", optionalAuth, async (req, res) => {
       queryFilter["location.public"] = locRegex;
     }
 
-    const lostItems = await LostItem.find(queryFilter).populate("ownerId", "name email");
-    const foundItems = await FoundItem.find(queryFilter).populate("finderId", "name email");
+    let lostFilter = { ...queryFilter };
+    let foundFilter = { ...queryFilter };
+
+    if (!isAdmin) {
+      const shadowBannedUsers = await User.find({ status: "shadow_banned" }).select("_id");
+      const shadowBannedIds = shadowBannedUsers.map(u => u._id);
+
+      lostFilter.ownerId = { $nin: shadowBannedIds };
+      foundFilter.finderId = { $nin: shadowBannedIds };
+    }
+
+    const lostItems = await LostItem.find(lostFilter).populate("ownerId", "name email");
+    const foundItems = await FoundItem.find(foundFilter).populate("finderId", "name email");
 
     const formattedLost = lostItems.map(item => formatItem(item, "lost", req.user));
     const formattedFound = foundItems.map(item => formatItem(item, "found", req.user));

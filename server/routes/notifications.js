@@ -55,4 +55,33 @@ router.put("/read-all", auth, async (req, res) => {
   }
 });
 
+// @route   POST api/notifications/create-custom
+// @desc    Create a custom alert/warning notification for a user (Admin only)
+// @access  Private/Admin
+router.post("/create-custom", auth, async (req, res) => {
+  const { userId, message, type } = req.body;
+  if (!userId || !message) {
+    return res.status(400).json({ message: "Recipient user ID and message are required." });
+  }
+
+  // Check admin role
+  if (req.user.role !== "admin" && req.user.role !== "super-admin") {
+    return res.status(403).json({ message: "Access denied. Admin role required." });
+  }
+
+  try {
+    const notification = new Notification({
+      userId,
+      message,
+      type: type || "general",
+      read: false
+    });
+    await notification.save();
+    res.status(201).json(notification);
+  } catch (err) {
+    console.error("Create custom notification error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
 module.exports = router;

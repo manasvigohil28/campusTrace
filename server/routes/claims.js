@@ -10,14 +10,14 @@ const Notification = require("../models/Notification");
 const { auth } = require("../middleware/auth");
 
 const CATEGORY_FIELDS = {
-  "Electronics": ["brand", "model", "color", "serial"],
+  "Electronics": ["brand", "model", "color", "accessories", "specialMarks", "serial"],
   "Wallets & Money": ["color", "material", "cards", "cash"],
   "Stationery": ["color", "brand", "contents", "specialMarks"],
-  "Bags": ["color", "brand", "contents", "size"],
+  "Bags": ["color", "brand", "contents", "size", "specialMarks"],
   "Keys": ["keychain", "count", "specialMarks"],
   "ID & Documents": ["documentName", "documentNumber", "issuingInstitution"],
   "Clothing": ["color", "brand", "size", "specialMarks"],
-  "Jewelry & Accessories": ["type", "color", "specialMarks"],
+  "Jewelry & Accessories": ["type", "color", "engraving", "specialMarks"],
   "Books": ["title", "author", "specialMarks"],
   "Water Bottles & Containers": ["color", "brand", "specialMarks"],
   "Sports Equipment": ["sportType", "brand", "color"],
@@ -81,6 +81,39 @@ const getFieldScore = (finderVal, claimantVal, maxScore) => {
   return 0;
 };
 
+const COLOR_FAMILIES = {
+  blue: ["blue", "navy", "dark blue", "sky", "turquoise", "indigo", "teal", "cyan", "royal blue"],
+  red: ["red", "maroon", "crimson", "scarlet", "pink", "rose", "coral"],
+  green: ["green", "olive", "lime", "emerald", "mint", "forest green"],
+  yellow: ["yellow", "gold", "mustard", "lemon"],
+  orange: ["orange", "peach", "apricot"],
+  purple: ["purple", "violet", "lavender", "plum", "magenta"],
+  black: ["black", "dark", "charcoal"],
+  white: ["white", "cream", "ivory", "off-white", "beige"],
+  gray: ["gray", "grey", "silver"],
+  brown: ["brown", "tan", "khaki", "chocolate"]
+};
+
+const getColorFamily = (color) => {
+  const c = String(color || "").toLowerCase().trim();
+  for (const [family, keywords] of Object.entries(COLOR_FAMILIES)) {
+    if (keywords.some(kw => c.includes(kw) || kw.includes(c))) {
+      return family;
+    }
+  }
+  return null;
+};
+
+const getCleanWordSet = (val) => {
+  const stopWords = new Set(["a", "an", "the", "and", "or", "but", "is", "are", "was", "were", "in", "on", "at", "to", "for", "with", "of", "about", "by", "from", "that", "this", "these", "those"]);
+  const rawText = Array.isArray(val) ? val.join(" ") : String(val || "");
+  const words = rawText.toLowerCase()
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !stopWords.has(w));
+  return new Set(words);
+};
+
 const router = express.Router();
 
 // @route   POST api/claims
@@ -138,6 +171,15 @@ router.post("/", auth, async (req, res) => {
       return res.status(400).json({ message: "You already have a pending claim for this item." });
     }
 
+    // Load claimant user to check fraud flags
+    const claimantUser = await User.findById(req.user.id);
+    let requiresAdminReview = false;
+    if (claimantUser && claimantUser.fraudFlags) {
+      if (claimantUser.fraudFlags.failedClaims >= 3 || claimantUser.fraudFlags.suspiciousClaims >= 1) {
+        requiresAdminReview = true;
+      }
+    }
+
     // Capture structured item snapshot
     const itemSnapshot = {
       title: item.title,
@@ -166,118 +208,305 @@ router.post("/", auth, async (req, res) => {
     let earnedPoints = 0;
     let possiblePoints = 0;
 
+    const explanation = {
+      matchedFields: [],
+      partialMatches: [],
+      mismatches: []
+    };
+
     // 1. Color Match (Max 20)
     let colorScore = 0;
     const hasColor = fields.includes("color");
-    if (hasColor) {
+    let isColorApplicable = false;
+    if (hasColor && itemSnapshot.verificationData.color) {
+      isColorApplicable = true;
       const fColor = itemSnapshot.verificationData.color;
       const cColor = claimantVerificationData.color;
-      colorScore = getFieldScore(fColor, cColor, 20);
-      earnedPoints += colorScore;
+      
+      const f = String(fColor || "").toLowerCase().trim();
+      const c = String(cColor || "").toLowerCase().trim();
+      
+      if (f && c) {
+        const famF = getColorFamily(f);
+        const famC = getColorFamily(c);
+        
+        if (f === c || (famF && famC && famF === famC)) {
+          colorScore = 20;
+          earnedPoints += 20;
+          explanation.matchedFields.push("color");
+        } else {
+          // Check partial sharing
+          const fWords = f.split(/\s+/).filter(w => w.length > 2);
+          const cWords = c.split(/\s+/).filter(w => w.length > 2);
+          const sharesWord = fWords.some(fw => c.includes(fw)) || cWords.some(cw => f.includes(cw));
+          
+          if (sharesWord || f.includes(c) || c.includes(f)) {
+            colorScore = 10;
+            earnedPoints += 10;
+            explanation.partialMatches.push("color");
+          } else {
+            explanation.mismatches.push("color");
+          }
+        }
+      } else {
+        explanation.mismatches.push("color");
+      }
       possiblePoints += 20;
     }
 
     // 2. Brand Match (Max 10)
     let brandScore = 0;
     const hasBrand = fields.includes("brand");
-    if (hasBrand) {
+    let isBrandApplicable = false;
+    if (hasBrand && itemSnapshot.verificationData.brand) {
+      isBrandApplicable = true;
       const fBrand = itemSnapshot.verificationData.brand;
       const cBrand = claimantVerificationData.brand;
       brandScore = getFieldScore(fBrand, cBrand, 10);
       earnedPoints += brandScore;
       possiblePoints += 10;
+      if (brandScore === 10) {
+        explanation.matchedFields.push("brand");
+      } else if (brandScore === 5) {
+        explanation.partialMatches.push("brand");
+      } else {
+        explanation.mismatches.push("brand");
+      }
     }
 
-
-    // 3. Contents Match (Max 20)
+    // 3. Contents Match (Max 30) - Jaccard Similarity
     let contentsScore = 0;
+    let isContentsApplicable = false;
     const hasContents = fields.includes("contents") || fields.includes("cards");
-    if (hasContents) {
-      const finderKey = fields.includes("contents") ? "contents" : "cards";
-      const rawFinderContents = itemSnapshot.verificationData[finderKey];
-      const fContents = Array.isArray(rawFinderContents) 
-        ? rawFinderContents.join(" ") 
-        : rawFinderContents;
+    const finderKey = fields.includes("contents") ? "contents" : "cards";
+    if (hasContents && itemSnapshot.verificationData[finderKey]) {
+      isContentsApplicable = true;
+      const fRaw = itemSnapshot.verificationData[finderKey];
+      const cRaw = claimantVerificationData[finderKey] || "";
       
-      const claimantKey = fields.includes("contents") ? "contents" : "cards";
-      const cContents = claimantVerificationData[claimantKey];
-      contentsScore = getFieldScore(fContents, cContents, 20);
-      earnedPoints += contentsScore;
-      possiblePoints += 20;
+      const setF = getCleanWordSet(fRaw);
+      const setC = getCleanWordSet(cRaw);
+      
+      if (setF.size > 0 || setC.size > 0) {
+        const intersection = new Set([...setF].filter(x => setC.has(x)));
+        const union = new Set([...setF, ...setC]);
+        const jaccard = union.size > 0 ? intersection.size / union.size : 0;
+        
+        contentsScore = Math.round(jaccard * 30 * 100) / 100;
+        earnedPoints += contentsScore;
+        
+        if (jaccard >= 0.75) {
+          explanation.matchedFields.push("contents");
+        } else if (jaccard >= 0.2) {
+          explanation.partialMatches.push("contents");
+        } else {
+          explanation.mismatches.push("contents");
+        }
+      } else {
+        explanation.mismatches.push("contents");
+      }
+      possiblePoints += 30;
     }
 
     // 4. Location Match (Max 20)
     let locationScore = 0;
+    let isLocationApplicable = false;
     const locationGuess = claimantVerificationData.locationGuess;
     const hasLocationGuess = typeof locationGuess === "string" && locationGuess.trim().length > 0;
-    if (hasLocationGuess) {
+    if (hasLocationGuess && itemSnapshot.location && itemSnapshot.location.public) {
+      isLocationApplicable = true;
       const fLocation = itemSnapshot.location.public;
       locationScore = getFieldScore(fLocation, locationGuess, 20);
       earnedPoints += locationScore;
       possiblePoints += 20;
+      if (locationScore === 20) {
+        explanation.matchedFields.push("location");
+      } else if (locationScore === 10) {
+        explanation.partialMatches.push("location");
+      } else {
+        explanation.mismatches.push("location");
+      }
     }
 
-    // 5. Semantic Similarity (Max 30) - FastAPI integration
+    // Setup for AI / NLP Calls
+    const aiServiceUrl = process.env.AI_SERVICE_URL || "http://localhost:8000";
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+    // 5. Special Marks (Max 10 Base + 10 Bonus)
+    let specialMarksScore = 0;
+    let isSpecialMarksApplicable = false;
+    let specialMarksSimilarity = null;
+    let specialMarksBonus = 0;
+
+    const hasSpecialMarks = fields.includes("specialMarks") || fields.includes("engraving");
+    const marksFinderKey = fields.includes("specialMarks") ? "specialMarks" : "engraving";
+    const fMarks = itemSnapshot.verificationData[marksFinderKey];
+    const cMarks = claimantVerificationData[marksFinderKey];
+
+    if (hasSpecialMarks && fMarks) {
+      isSpecialMarksApplicable = true;
+      possiblePoints += 10;
+      
+      if (cMarks && cMarks.trim()) {
+        try {
+          const aiMarksResponse = await fetch(`${aiServiceUrl}/similarity`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ finderText: fMarks, claimantText: cMarks }),
+            signal: controller.signal
+          });
+          if (aiMarksResponse.ok) {
+            const aiMarksData = await aiMarksResponse.json();
+            specialMarksSimilarity = typeof aiMarksData.similarity === "number" ? aiMarksData.similarity : 0.0;
+            specialMarksScore = Math.round(specialMarksSimilarity * 10 * 100) / 100;
+            earnedPoints += specialMarksScore;
+            
+            if (specialMarksSimilarity >= 0.75) {
+              specialMarksBonus = 10;
+              earnedPoints += 10; // Bonus +10
+              explanation.matchedFields.push("specialMarks");
+            } else if (specialMarksSimilarity >= 0.4) {
+              explanation.partialMatches.push("specialMarks");
+            } else {
+              explanation.mismatches.push("specialMarks");
+            }
+          } else {
+            throw new Error("Bad response status");
+          }
+        } catch (err) {
+          console.warn("AI Service offline for special marks, using fallback Jaccard:", err.message);
+          const setF = getCleanWordSet(fMarks);
+          const setC = getCleanWordSet(cMarks);
+          const intersection = new Set([...setF].filter(x => setC.has(x)));
+          const union = new Set([...setF, ...setC]);
+          const jaccard = union.size > 0 ? intersection.size / union.size : 0;
+          
+          specialMarksSimilarity = jaccard;
+          specialMarksScore = Math.round(jaccard * 10 * 100) / 100;
+          earnedPoints += specialMarksScore;
+          
+          if (jaccard >= 0.7) {
+            specialMarksBonus = 10;
+            earnedPoints += 10; // Bonus
+            explanation.matchedFields.push("specialMarks");
+          } else if (jaccard >= 0.3) {
+            explanation.partialMatches.push("specialMarks");
+          } else {
+            explanation.mismatches.push("specialMarks");
+          }
+        }
+      } else {
+        explanation.mismatches.push("specialMarks");
+      }
+    }
+
+    // 6. General NLP Semantic Similarity (Max 10)
     let semanticSimilarity = null;
     let semanticScore = null;
     let aiAvailable = false;
     let aiMetadata = null;
+    let isDescriptionApplicable = false;
 
-    const finderText = buildText(itemSnapshot.verificationData, itemSnapshot.category, itemSnapshot.subcategory);
-    const claimantText = buildText(claimantVerificationData, itemSnapshot.category, itemSnapshot.subcategory);
-    const aiServiceUrl = process.env.AI_SERVICE_URL || "http://localhost:8000";
+    const finderText = itemSnapshot.verificationData.freeTextDescription;
+    const claimantText = claimantVerificationData.freeTextDescription;
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    if (finderText && claimantText && finderText.trim() && claimantText.trim()) {
+      isDescriptionApplicable = true;
+      possiblePoints += 10;
 
-    try {
-      const aiResponse = await fetch(`${aiServiceUrl}/similarity`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ finderText, claimantText }),
-        signal: controller.signal
-      });
+      try {
+        const aiResponse = await fetch(`${aiServiceUrl}/similarity`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ finderText, claimantText }),
+          signal: controller.signal
+        });
 
-      clearTimeout(timeoutId);
+        clearTimeout(timeoutId);
 
-      if (aiResponse.ok) {
-        const aiData = await aiResponse.json();
-        const similarity = typeof aiData.similarity === "number" ? aiData.similarity : 0.0;
+        if (aiResponse.ok) {
+          const aiData = await aiResponse.json();
+          const similarity = typeof aiData.similarity === "number" ? aiData.similarity : 0.0;
+          
+          semanticSimilarity = Math.round(similarity * 100) / 100;
+          semanticScore = Math.round(similarity * 10 * 100) / 100;
+          aiAvailable = true;
+          aiMetadata = {
+            similarity: similarity,
+            model: "all-MiniLM-L6-v2",
+            timestamp: new Date()
+          };
+
+          earnedPoints += semanticScore;
+          if (semanticSimilarity >= 0.75) {
+            explanation.matchedFields.push("description");
+          } else if (semanticSimilarity >= 0.4) {
+            explanation.partialMatches.push("description");
+          } else {
+            explanation.mismatches.push("description");
+          }
+        } else {
+          throw new Error("Bad response status");
+        }
+      } catch (aiErr) {
+        clearTimeout(timeoutId);
+        console.warn("AI Service offline or request timed out for general description:", aiErr.message);
+        const setF = getCleanWordSet(finderText);
+        const setC = getCleanWordSet(claimantText);
+        const intersection = new Set([...setF].filter(x => setC.has(x)));
+        const union = new Set([...setF, ...setC]);
+        const jaccard = union.size > 0 ? intersection.size / union.size : 0;
         
-        semanticSimilarity = Math.round(similarity * 100) / 100;
-        semanticScore = Math.round(similarity * 30 * 100) / 100;
-        aiAvailable = true;
-        aiMetadata = {
-          similarity: similarity,
-          model: "all-MiniLM-L6-v2",
-          timestamp: new Date()
-        };
-
+        semanticSimilarity = jaccard;
+        semanticScore = Math.round(jaccard * 10 * 100) / 100;
         earnedPoints += semanticScore;
-        possiblePoints += 30;
-      } else {
-        console.warn("AI Service returned non-ok status:", aiResponse.status);
+        if (jaccard >= 0.7) {
+          explanation.matchedFields.push("description");
+        } else if (jaccard >= 0.3) {
+          explanation.partialMatches.push("description");
+        } else {
+          explanation.mismatches.push("description");
+        }
       }
-    } catch (aiErr) {
+    } else {
       clearTimeout(timeoutId);
-      console.warn("AI Service offline or request timed out:", aiErr.message);
     }
 
-    // Dynamic Normalization
+    // Dynamic Normalization (Capped at 100)
     let score = possiblePoints > 0 ? (earnedPoints / possiblePoints) * 100 : 0;
-    score = Math.round(score * 100) / 100;
+    score = Math.min(100, Math.round(score * 100) / 100);
 
     // Confidence tiering
     let confidence = "LOW";
-    if (score >= 80) {
+    if (score >= 90) {
+      confidence = "VERY_HIGH";
+    } else if (score >= 75) {
       confidence = "HIGH";
-    } else if (score >= 60) {
+    } else if (score >= 50) {
       confidence = "MEDIUM";
+    }
+
+    // Risk Analysis Layer (Hard Rejections)
+    let triggerHardReject = false;
+
+    // Hard Reject 1: Brand mismatch AND Contents score < 20% AND Location Guess mismatch (when applicable)
+    if (isBrandApplicable && isContentsApplicable && isLocationApplicable) {
+      if (brandScore === 0 && (contentsScore / 30) < 0.20 && locationScore === 0) {
+        triggerHardReject = true;
+      }
+    }
+
+    // Hard Reject 2: NLP Similarity < 25% AND Contents score < 20% (when applicable)
+    if (isDescriptionApplicable && isContentsApplicable) {
+      if (semanticSimilarity !== null && semanticSimilarity < 0.25 && (contentsScore / 30) < 0.20) {
+        triggerHardReject = true;
+      }
     }
 
     // Auto-Reject safety threshold
     let status = "pending";
-    if (aiAvailable && score < 60) {
+    if (triggerHardReject || confidence === "LOW") {
       status = "rejected";
     }
 
@@ -300,10 +529,12 @@ router.post("/", auth, async (req, res) => {
       aiVersion: "1.0",
       aiMetadata,
       matchedTerms,
+      explanation,
+      requiresAdminReview,
       reviewedByHuman: false
     };
 
-    // Create the Claim
+    // Create the Claim (With claimVersion: 1)
     const newClaim = new Claim({
       itemId,
       itemType,
@@ -312,7 +543,8 @@ router.post("/", auth, async (req, res) => {
       claimantVerificationData,
       status,
       itemSnapshot,
-      verificationResult
+      verificationResult,
+      claimVersion: 1
     });
 
     const claim = await newClaim.save();
@@ -346,7 +578,7 @@ router.post("/", auth, async (req, res) => {
       try {
         await Notification.create({
           userId: req.user.id,
-          message: `Your claim request for "${item.title}" was auto-rejected by the AI verification system.`,
+          message: `Your claim request for "${item.title}" was auto-rejected by the verification system.`,
           type: "claim_rejected",
           relatedItemId: itemId,
           itemType,

@@ -14,7 +14,7 @@ type Section = "overview" | "lost" | "found" | "submitted" | "received" | "setti
 const getResult = (claim: any) => {
   const result = claim.verificationResult || {};
   const score = typeof result.score === "number" ? result.score : 75;
-  const confidence = result.confidence || (score >= 80 ? "HIGH" : score >= 60 ? "MEDIUM" : "LOW");
+  const confidence = result.confidence || (score >= 90 ? "VERY_HIGH" : score >= 75 ? "HIGH" : score >= 50 ? "MEDIUM" : "LOW");
   const aiAvailable = result.aiAvailable !== false;
   const earnedPoints = typeof result.earnedPoints === "number" ? result.earnedPoints : null;
   const possiblePoints = typeof result.possiblePoints === "number" ? result.possiblePoints : null;
@@ -34,7 +34,7 @@ const getResult = (claim: any) => {
     possiblePoints,
     colorScoreText: checkMatch(result.colorScore, 20),
     brandScoreText: checkMatch(result.brandScore, 10),
-    contentsScoreText: checkMatch(result.contentsScore, 20),
+    contentsScoreText: checkMatch(result.contentsScore, 30),
     locationScoreText: result.locationScore === null || result.locationScore === undefined ? "N/A" : checkMatch(result.locationScore, 20),
     semanticSimilarity: typeof result.semanticSimilarity === "number" ? Math.round(result.semanticSimilarity * 100) : null,
     matchedTerms: Array.isArray(result.matchedTerms) ? result.matchedTerms : []
@@ -572,6 +572,7 @@ export default function DashboardPage() {
                                     </div>
                                     <div className="text-right">
                                       <span className={`text-lg font-black tracking-wide ${
+                                        verify.confidence === "VERY_HIGH" ? "text-green-400 text-glow-blue animate-pulse" :
                                         verify.confidence === "HIGH" ? "text-green-400 text-glow-blue" :
                                         verify.confidence === "MEDIUM" ? "text-yellow-400" :
                                         "text-red-400"
@@ -585,6 +586,47 @@ export default function DashboardPage() {
                                       )}
                                     </div>
                                   </div>
+
+                                  {/* Administrative review flag for claimant fraud history */}
+                                  {claim.verificationResult?.requiresAdminReview && (
+                                    <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-[10px] font-bold flex items-center gap-2 shadow-sm animate-pulse">
+                                      <ShieldAlert className="w-4 h-4 text-red-400 flex-shrink-0 animate-bounce" />
+                                      <span>⚠️ SUSPICIOUS CLAIMANT: Claimant has a history of high failed or suspicious claims. Manual Admin Review is strongly recommended.</span>
+                                    </div>
+                                  )}
+
+                                  {/* AI Match Explanation summary list */}
+                                  {claim.verificationResult?.explanation && (
+                                    <div className="p-4 bg-black/45 border border-white/[0.04] rounded-2xl space-y-2 text-xs">
+                                      <h4 className="text-[10px] font-bold text-ct-cyan uppercase tracking-wider mb-1 text-glow-blue">AI Verification Explanation</h4>
+                                      <div className="space-y-1.5 font-sans">
+                                        {claim.verificationResult.explanation.matchedFields && claim.verificationResult.explanation.matchedFields.length > 0 && (
+                                          <p className="text-green-400 font-bold flex items-center gap-1.5 flex-wrap">
+                                            <span className="uppercase text-[9px] text-ct-text-muted">Matched:</span>
+                                            <span className="text-ct-text-secondary font-semibold">
+                                              {claim.verificationResult.explanation.matchedFields.map((f: string) => `✓ ${f}`).join(", ")}
+                                            </span>
+                                          </p>
+                                        )}
+                                        {claim.verificationResult.explanation.partialMatches && claim.verificationResult.explanation.partialMatches.length > 0 && (
+                                          <p className="text-yellow-400 font-bold flex items-center gap-1.5 flex-wrap">
+                                            <span className="uppercase text-[9px] text-ct-text-muted">Partial:</span>
+                                            <span className="text-ct-text-secondary font-semibold">
+                                              {claim.verificationResult.explanation.partialMatches.map((f: string) => `~ ${f}`).join(", ")}
+                                            </span>
+                                          </p>
+                                        )}
+                                        {claim.verificationResult.explanation.mismatches && claim.verificationResult.explanation.mismatches.length > 0 && (
+                                          <p className="text-red-400 font-bold flex items-center gap-1.5 flex-wrap">
+                                            <span className="uppercase text-[9px] text-ct-text-muted">Mismatch:</span>
+                                            <span className="text-ct-text-secondary font-semibold">
+                                              {claim.verificationResult.explanation.mismatches.map((f: string) => `✗ ${f}`).join(", ")}
+                                            </span>
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
 
                                   {/* Dynamic Verification Breakdown Metrics */}
                                   <div className="p-4 bg-white/[0.02] border border-white/[0.04] rounded-2xl space-y-2 text-xs">

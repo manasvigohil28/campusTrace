@@ -30,6 +30,8 @@ export const VERIFICATION_FIELDS: Record<string, VerificationField[]> = {
     { name: "brand", label: "Brand", type: "text", placeholder: "e.g. Apple, Samsung, Sony", required: true },
     { name: "model", label: "Model Name / Number", type: "text", placeholder: "e.g. iPhone 15, WH-1000XM4", required: true },
     { name: "color", label: "Color", type: "text", placeholder: "e.g. Space Gray, Silver", required: true },
+    { name: "accessories", label: "Accessories Included", type: "text", placeholder: "e.g. Charging cable, red protective case", required: false },
+    { name: "specialMarks", label: "Special Marks / Unique Features", type: "text", placeholder: "e.g. Scratch on screen, stickers on back", required: false },
     { name: "serial", label: "IMEI / Serial Number (Optional)", type: "text", placeholder: "e.g. Serial or IMEI if known" }
   ],
   "Wallets & Money": [
@@ -48,7 +50,8 @@ export const VERIFICATION_FIELDS: Record<string, VerificationField[]> = {
     { name: "color", label: "Bag Color", type: "text", placeholder: "e.g. Navy Blue, Matte Black", required: true },
     { name: "brand", label: "Brand", type: "text", placeholder: "e.g. Jansport, Herschel, Samsonite", required: true },
     { name: "contents", label: "Inside Contents", type: "textarea", placeholder: "e.g. Chemistry textbook, keys, notebook", required: true },
-    { name: "size", label: "Approximate Size", type: "select", options: ["Small (e.g. Clutch/Pouch)", "Medium (e.g. Standard Backpack)", "Large (e.g. Duffle/Suitcase)"], required: true }
+    { name: "size", label: "Approximate Size", type: "select", options: ["Small (e.g. Clutch/Pouch)", "Medium (e.g. Standard Backpack)", "Large (e.g. Duffle/Suitcase)"], required: true },
+    { name: "specialMarks", label: "Special Marks / Unique Features", type: "text", placeholder: "e.g. Broken zipper, key pin attached", required: false }
   ],
   "Keys": [
     { name: "keychain", label: "Keychain / Key Ring Details", type: "text", placeholder: "e.g. Red lanyard, teddy bear charm", required: true },
@@ -69,7 +72,8 @@ export const VERIFICATION_FIELDS: Record<string, VerificationField[]> = {
   "Jewelry & Accessories": [
     { name: "type", label: "Metal / Material", type: "text", placeholder: "e.g. Silver, 14k Gold, Beaded", required: true },
     { name: "color", label: "Color", type: "text", placeholder: "e.g. Gold, Rose Gold, Turquoise", required: true },
-    { name: "specialMarks", label: "Engravings or Unique Markings", type: "text", placeholder: "e.g. Engraving 'Love Always' inside band", required: true }
+    { name: "engraving", label: "Custom Engravings (Optional)", type: "text", placeholder: "e.g. 'Love Always' inside band", required: false },
+    { name: "specialMarks", label: "Special Marks / Unique Features", type: "text", placeholder: "e.g. Missing claw, scratch on backing", required: true }
   ],
   "Books": [
     { name: "title", label: "Book Title / Subject", type: "text", placeholder: "e.g. Introduction to Physics", required: true },
