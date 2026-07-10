@@ -31,6 +31,10 @@ const NotificationSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "Claim",
   },
+  relatedMatchId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "PossibleMatch",
+  },
   createdAt: {
     type: Date,
     default: Date.now,

@@ -19,6 +19,7 @@ app.use("/api/claims", require("./routes/claims"));
 app.use("/api/admin", require("./routes/admin"));
 app.use("/api/notifications", require("./routes/notifications"));
 app.use("/api/conversations", require("./routes/conversations"));
+app.use("/api/matches", require("./routes/matches"));
 
 // Basic welcome route
 app.get("/", (req, res) => {

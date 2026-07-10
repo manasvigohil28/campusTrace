@@ -3,12 +3,12 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { List, ClipboardList, CheckCircle, XCircle, Trash2, Calendar, MapPin, Tag, RefreshCw, Loader2, Inbox, Eye, ShieldAlert, BarChart3, Settings, HelpCircle, Check, AlertTriangle, EyeOff, User as UserIcon } from "lucide-react";
+import { List, ClipboardList, CheckCircle, XCircle, Trash2, Calendar, MapPin, Tag, RefreshCw, Loader2, Inbox, Eye, ShieldAlert, BarChart3, Settings, HelpCircle, Check, AlertTriangle, EyeOff, User as UserIcon, Sparkles, ChevronRight, X, Bot, Zap } from "lucide-react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/sections/Footer";
 
-type Section = "overview" | "lost" | "found" | "submitted" | "received" | "settings";
+type Section = "overview" | "lost" | "found" | "submitted" | "received" | "matches" | "settings";
 
 // Helper to resolve verification metrics
 const getResult = (claim: any) => {
@@ -76,6 +76,10 @@ export default function DashboardPage() {
   const [fetching, setFetching] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // AI Matches state
+  const [aiMatches, setAiMatches] = useState<any[]>([]);
+  const [dismissingMatch, setDismissingMatch] = useState<string | null>(null);
+
   // Expansion state for claims received review
   const [expandedClaim, setExpandedClaim] = useState<string | null>(null);
 
@@ -118,6 +122,15 @@ export default function DashboardPage() {
         const data = await resClaims.json();
         setClaimsSubmitted(data.submitted || []);
         setClaimsReceived(data.received || []);
+      }
+
+      // 4. Fetch AI matches
+      const resMatches = await fetch(`${API_URL}/matches`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (resMatches.ok) {
+        const data = await resMatches.json();
+        setAiMatches(data);
       }
     } catch (err) {
       console.error("Error fetching dashboard data:", err);
@@ -174,6 +187,23 @@ export default function DashboardPage() {
       console.error("Error updating claim:", err);
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleDismissMatch = async (matchId: string) => {
+    setDismissingMatch(matchId);
+    try {
+      const res = await fetch(`${API_URL}/matches/${matchId}/dismiss`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setAiMatches(prev => prev.filter(m => m._id !== matchId));
+      }
+    } catch (err) {
+      console.error("Error dismissing match:", err);
+    } finally {
+      setDismissingMatch(null);
     }
   };
 
@@ -269,11 +299,12 @@ export default function DashboardPage() {
           </div>
 
           {/* Top Analytics Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
             <AnalyticsCard title="Lost Reported" count={lostItems.length} color="border-red-500/20 text-red-400 bg-red-500/[0.02]" />
             <AnalyticsCard title="Found Reported" count={foundItems.length} color="border-ct-blue/20 text-ct-blue-bright bg-ct-blue/[0.02]" />
             <AnalyticsCard title="Claims Submitted" count={claimsSubmitted.length} color="border-ct-cyan/20 text-ct-cyan bg-ct-cyan/[0.02]" />
             <AnalyticsCard title="Successful Returns" count={resolvedReturns} color="border-green-500/20 text-green-400 bg-green-500/[0.02]" />
+            <AnalyticsCard title="AI Matches" count={aiMatches.filter(m => m.status === "POSSIBLE").length} color="border-ct-purple/20 text-ct-purple bg-ct-purple/[0.02]" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -288,6 +319,19 @@ export default function DashboardPage() {
                 <SidebarButton active={activeSection === "found"} onClick={() => setActiveSection("found")} label={`My Found Items (${foundItems.length})`} icon={<List className="w-4 h-4 text-ct-blue-bright" />} />
                 <SidebarButton active={activeSection === "submitted"} onClick={() => setActiveSection("submitted")} label={`Claims Submitted (${claimsSubmitted.length})`} icon={<ClipboardList className="w-4 h-4 text-ct-cyan" />} />
                 <SidebarButton active={activeSection === "received"} onClick={() => setActiveSection("received")} label={`Claims Received (${claimsReceived.length})`} icon={<Inbox className="w-4 h-4 text-ct-purple" />} />
+                <div className="relative">
+                  <SidebarButton
+                    active={activeSection === "matches"}
+                    onClick={() => setActiveSection("matches")}
+                    label={`AI Matches`}
+                    icon={<Bot className="w-4 h-4 text-emerald-400" />}
+                  />
+                  {aiMatches.filter(m => m.status === "POSSIBLE").length > 0 && (
+                    <span className="absolute top-1.5 right-2 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-emerald-500 text-[9px] font-black text-white shadow-lg animate-pulse">
+                      {aiMatches.filter(m => m.status === "POSSIBLE").length}
+                    </span>
+                  )}
+                </div>
                 <SidebarButton active={activeSection === "settings"} onClick={() => setActiveSection("settings")} label="Profile & Settings" icon={<Settings className="w-4 h-4" />} />
               </div>
             </div>
@@ -724,6 +768,51 @@ export default function DashboardPage() {
                     )
                   )}
 
+                  {/* SECTION: AI MATCHES */}
+                  {activeSection === "matches" && (
+                    <div className="space-y-6">
+                      {/* Header */}
+                      <div className="glass-strong rounded-3xl p-6 border border-white/[0.06] shadow-lg">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/20 flex items-center justify-center">
+                            <Bot className="w-5 h-5 text-emerald-400" />
+                          </div>
+                          <div>
+                            <h2 className="text-lg font-bold text-ct-text-primary">AI Smart Matches</h2>
+                            <p className="text-xs text-ct-text-secondary">Powered by all-MiniLM-L6-v2 · 45% semantic + 35% field + 20% location</p>
+                          </div>
+                        </div>
+                        <div className="mt-4 p-3.5 bg-emerald-500/5 border border-emerald-500/15 rounded-2xl">
+                          <p className="text-xs text-emerald-300/80 leading-relaxed">
+                            🤖 Every item you report is automatically analysed by AI against all active matching items. Matches above 70% are stored here. Scores above 85% also trigger a notification.
+                          </p>
+                        </div>
+                      </div>
+
+                      {aiMatches.length === 0 ? (
+                        <div className="glass-strong rounded-3xl p-12 text-center border border-white/[0.06] shadow-md">
+                          <Bot className="w-10 h-10 text-emerald-400/30 mx-auto mb-3" />
+                          <h3 className="text-sm font-bold text-ct-text-primary">No AI Matches Yet</h3>
+                          <p className="text-xs text-ct-text-secondary mt-1.5 leading-relaxed max-w-xs mx-auto">
+                            AI matching runs automatically when you report an item. Check back after adding a report, or wait for another user to post a matching item.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {aiMatches.map((match) => (
+                            <MatchCard
+                              key={match._id}
+                              match={match}
+                              currentUserId={user.id}
+                              onDismiss={() => handleDismissMatch(match._id)}
+                              dismissing={dismissingMatch === match._id}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* SECTION: SETTINGS */}
                   {activeSection === "settings" && (
                     <div className="glass-strong rounded-3xl p-6 md:p-8 border border-white/[0.06] shadow-lg space-y-6">
@@ -908,6 +997,176 @@ function DashboardCard({ item, type, actionLoading, onDelete }: { item: any; typ
         </button>
       </div>
 
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MatchCard — AI Matches Section
+// ─────────────────────────────────────────────────────────────────────────────
+function MatchCard({
+  match, currentUserId, onDismiss, dismissing
+}: {
+  match: any;
+  currentUserId: string;
+  onDismiss: () => void;
+  dismissing: boolean;
+}) {
+  const score = match.overallScore || 0;
+  const confidence = match.confidence || "MEDIUM";
+  const lost  = match.lostItemId;
+  const found = match.foundItemId;
+
+  const isOwner = lost?.ownerId && (
+    (lost.ownerId._id || lost.ownerId) === currentUserId ||
+    (lost.ownerId._id || lost.ownerId).toString() === currentUserId
+  );
+
+  const scoreColor =
+    score >= 90 ? "from-emerald-500 to-green-400"  :
+    score >= 80 ? "from-yellow-500 to-amber-400"   :
+    "from-orange-500 to-red-400";
+
+  const confidenceBg =
+    confidence === "EXCELLENT" ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300" :
+    confidence === "VERY_HIGH" ? "bg-green-500/15 border-green-500/30 text-green-300"       :
+    confidence === "HIGH"      ? "bg-yellow-500/15 border-yellow-500/30 text-yellow-300"    :
+    "bg-orange-500/15 border-orange-500/30 text-orange-300";
+
+  const statusBg =
+    match.status === "POSSIBLE" ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400" :
+    match.status === "VIEWED"   ? "bg-ct-blue/10 border-ct-blue/25 text-ct-blue-bright"     :
+    match.status === "DISMISSED"? "bg-white/5 border-white/10 text-ct-text-muted"           :
+    "bg-white/5 border-white/10 text-ct-text-muted";
+
+  return (
+    <div className="glass-strong rounded-3xl border border-white/[0.06] shadow-lg overflow-hidden group hover:border-emerald-500/20 transition-all duration-300">
+      {/* Score Header Bar */}
+      <div className="p-5 border-b border-white/[0.04]">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            {/* Score circle */}
+            <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${scoreColor} flex items-center justify-center shadow-lg flex-shrink-0`}>
+              <span className="text-white font-black text-base">{score}%</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${confidenceBg}`}>
+                  {confidence.replace("_", " ")}
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${statusBg}`}>
+                  {match.status}
+                </span>
+              </div>
+              <p className="text-xs text-ct-text-secondary mt-1 leading-relaxed max-w-sm">
+                {match.matchReason?.reasonSummary || "AI-based semantic match"}
+              </p>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Link href={`/matches/${match._id}`}>
+              <button className="py-2 px-4 rounded-xl bg-emerald-500/10 border border-emerald-500/25 hover:bg-emerald-500/20 text-emerald-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer">
+                <Eye className="w-3.5 h-3.5" />
+                <span>Review Match</span>
+              </button>
+            </Link>
+            <button
+              onClick={onDismiss}
+              disabled={dismissing}
+              title="Dismiss this recommendation"
+              className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400 text-ct-text-muted transition-all cursor-pointer disabled:opacity-50"
+            >
+              {dismissing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Score bar */}
+        <div className="mt-4 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full bg-gradient-to-r ${scoreColor} transition-all duration-700`}
+            style={{ width: `${score}%` }}
+          />
+        </div>
+
+        {/* Score breakdown pills */}
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
+          {match.semanticScore != null && (
+            <span className="text-[9px] px-2 py-0.5 rounded-full bg-ct-blue/10 border border-ct-blue/20 text-ct-blue-bright font-semibold">
+              Semantic: {match.semanticScore}%
+            </span>
+          )}
+          {match.fieldScore != null && (
+            <span className="text-[9px] px-2 py-0.5 rounded-full bg-ct-cyan/10 border border-ct-cyan/20 text-ct-cyan font-semibold">
+              Fields: {match.fieldScore}%
+            </span>
+          )}
+          {match.locationScore != null && (
+            <span className="text-[9px] px-2 py-0.5 rounded-full bg-ct-purple/10 border border-ct-purple/20 text-ct-purple font-semibold">
+              Location: {match.locationScore}%
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Item comparison row */}
+      <div className="grid grid-cols-2 divide-x divide-white/[0.04]">
+        {/* Lost Item */}
+        <div className="p-4 space-y-1.5">
+          <span className="text-[8px] font-bold uppercase tracking-wider text-red-400/70">Lost Item</span>
+          {lost ? (
+            <>
+              <p className="text-xs font-bold text-ct-text-primary line-clamp-1">{lost.title}</p>
+              <p className="text-[10px] text-ct-text-muted">{lost.category} · {lost.subcategory}</p>
+              {lost.location?.public && (
+                <p className="text-[10px] text-ct-text-muted flex items-center gap-1">
+                  <MapPin className="w-2.5 h-2.5 inline" /> {lost.location.public}
+                </p>
+              )}
+              {lost.dateLost && (
+                <p className="text-[10px] text-ct-text-muted flex items-center gap-1">
+                  <Calendar className="w-2.5 h-2.5 inline" /> {new Date(lost.dateLost).toLocaleDateString()}
+                </p>
+              )}
+            </>
+          ) : <p className="text-[10px] text-ct-text-muted italic">Item removed</p>}
+        </div>
+
+        {/* Found Item */}
+        <div className="p-4 space-y-1.5">
+          <span className="text-[8px] font-bold uppercase tracking-wider text-emerald-400/70">Found Item</span>
+          {found ? (
+            <>
+              <p className="text-xs font-bold text-ct-text-primary line-clamp-1">{found.title}</p>
+              <p className="text-[10px] text-ct-text-muted">{found.category} · {found.subcategory}</p>
+              {found.location?.public && (
+                <p className="text-[10px] text-ct-text-muted flex items-center gap-1">
+                  <MapPin className="w-2.5 h-2.5 inline" /> {found.location.public}
+                </p>
+              )}
+              {found.dateFound && (
+                <p className="text-[10px] text-ct-text-muted flex items-center gap-1">
+                  <Calendar className="w-2.5 h-2.5 inline" /> {new Date(found.dateFound).toLocaleDateString()}
+                </p>
+              )}
+            </>
+          ) : <p className="text-[10px] text-ct-text-muted italic">Item removed</p>}
+        </div>
+      </div>
+
+      {/* Matched keywords */}
+      {match.matchReason?.matchedKeywords?.length > 0 && (
+        <div className="px-4 pb-4 pt-2 border-t border-white/[0.03] flex items-center gap-1.5 flex-wrap">
+          <span className="text-[9px] text-ct-text-muted font-semibold">Keywords:</span>
+          {match.matchReason.matchedKeywords.slice(0, 5).map((kw: string) => (
+            <span key={kw} className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.06] text-ct-text-muted">
+              {kw}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

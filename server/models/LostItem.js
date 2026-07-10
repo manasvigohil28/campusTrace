@@ -63,6 +63,16 @@ const LostItemSchema = new mongoose.Schema({
   deletedAt: {
     type: Date,
   },
+  // Phase 5: AI Smart Matching
+  embedding: {
+    type: [Number],  // L2-normalized 384-dim vector; dot(a,b) == cosine_sim(a,b)
+    default: [],
+  },
+  matchingStatus: {
+    type: String,
+    enum: ["PENDING", "PROCESSING", "COMPLETED", "FAILED"],
+    default: "PENDING",
+  },
   createdAt: {
     type: Date,
     default: Date.now,

@@ -4,59 +4,9 @@ const LostItem = require("../models/LostItem");
 const FoundItem = require("../models/FoundItem");
 const Notification = require("../models/Notification");
 const { auth, optionalAuth } = require("../middleware/auth");
+const { runMatchingForItem, recomputeMatchesForItem, expireMatchesForItem } = require("../services/matchingService");
 
 const router = express.Router();
-
-// Helper to look for matches and send notifications
-const checkForMatches = async (newItem, type) => {
-  try {
-    const isLost = type === "lost";
-    const TargetModel = isLost ? FoundItem : LostItem;
-    
-    // Find potential matches of opposite type with same category & subcategory
-    const potentialMatches = await TargetModel.find({
-      category: newItem.category,
-      subcategory: newItem.subcategory,
-      status: "active",
-      isDeleted: { $ne: true }
-    });
-
-    const titleLower = newItem.title.toLowerCase();
-    const keywords = titleLower.split(/\s+/).filter(w => w.length > 2);
-    
-    for (const match of potentialMatches) {
-      const matchTitle = match.title.toLowerCase();
-      // Check if they share any keyword (length > 2) in the title
-      const sharesKeyword = keywords.some(kw => matchTitle.includes(kw)) || 
-                           matchTitle.split(/\s+/).filter(w => w.length > 2).some(kw => titleLower.includes(kw));
-                           
-      if (sharesKeyword) {
-        const targetUserId = isLost ? match.finderId : match.ownerId;
-        const currentUserId = isLost ? newItem.ownerId : newItem.finderId;
-
-        // Notify matching owner/finder
-        await Notification.create({
-          userId: targetUserId,
-          message: `Potential match found: Another user reported "${newItem.title}" which matches your reported "${match.title}".`,
-          type: "match_found",
-          relatedItemId: newItem._id,
-          itemType: isLost ? "LostItem" : "FoundItem"
-        });
-
-        // Notify current user
-        await Notification.create({
-          userId: currentUserId,
-          message: `Potential match detected in database: "${match.title}" matches your reported "${newItem.title}".`,
-          type: "match_found",
-          relatedItemId: match._id,
-          itemType: isLost ? "FoundItem" : "LostItem"
-        });
-      }
-    }
-  } catch (err) {
-    console.error("Error matching items/creating notifications:", err);
-  }
-};
 
 // Helper to check if item is owned by user or user is admin
 const canModify = (userId, ownerId, userRole) => {
@@ -273,7 +223,8 @@ router.post("/lost", auth, async (req, res) => {
     });
 
     const item = await newItem.save();
-    checkForMatches(item, "lost");
+    // Phase 5: Run AI matching in background — response is sent first
+    setImmediate(() => runMatchingForItem(item, "lost"));
     res.status(201).json(item);
   } catch (err) {
     console.error("Create lost item error:", err.message);
@@ -302,7 +253,8 @@ router.post("/found", auth, async (req, res) => {
     });
 
     const item = await newItem.save();
-    checkForMatches(item, "found");
+    // Phase 5: Run AI matching in background — response is sent first
+    setImmediate(() => runMatchingForItem(item, "found"));
     res.status(201).json(item);
   } catch (err) {
     console.error("Create found item error:", err.message);
@@ -325,6 +277,8 @@ router.put("/lost/:id", auth, async (req, res) => {
     }
 
     item = await LostItem.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true });
+    // Phase 5: Recompute matches after edit (fire-and-forget)
+    setImmediate(() => recomputeMatchesForItem(req.params.id, "lost"));
     res.json(item);
   } catch (err) {
     console.error("Update lost item error:", err.message);
@@ -347,6 +301,8 @@ router.put("/found/:id", auth, async (req, res) => {
     }
 
     item = await FoundItem.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true });
+    // Phase 5: Recompute matches after edit (fire-and-forget)
+    setImmediate(() => recomputeMatchesForItem(req.params.id, "found"));
     res.json(item);
   } catch (err) {
     console.error("Update found item error:", err.message);
@@ -369,6 +325,8 @@ router.delete("/lost/:id", auth, async (req, res) => {
     }
 
     await LostItem.findByIdAndUpdate(req.params.id, { $set: { isDeleted: true, deletedAt: new Date() } });
+    // Phase 5: Expire all related matches (fire-and-forget)
+    setImmediate(() => expireMatchesForItem(req.params.id));
     res.json({ message: "Lost item deleted." });
   } catch (err) {
     console.error("Delete lost item error:", err.message);
@@ -391,6 +349,8 @@ router.delete("/found/:id", auth, async (req, res) => {
     }
 
     await FoundItem.findByIdAndUpdate(req.params.id, { $set: { isDeleted: true, deletedAt: new Date() } });
+    // Phase 5: Expire all related matches (fire-and-forget)
+    setImmediate(() => expireMatchesForItem(req.params.id));
     res.json({ message: "Found item deleted." });
   } catch (err) {
     console.error("Delete found item error:", err.message);
