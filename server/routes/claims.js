@@ -331,7 +331,7 @@ router.post("/", auth, async (req, res) => {
     // Setup for AI / NLP Calls
     const aiServiceUrl = process.env.AI_SERVICE_URL || "http://localhost:8000";
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const timeoutId = setTimeout(() => controller.abort(), Number(process.env.AI_TIMEOUT_MS) || 3000);
 
     // 5. Special Marks (Max 10 Base + 10 Bonus)
     let specialMarksScore = 0;

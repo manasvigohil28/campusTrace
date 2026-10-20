@@ -10,7 +10,9 @@ const JWT_SECRET = process.env.JWT_SECRET || "campustrace_super_secret_jwt_key_2
 // @desc    Register a user
 // @access  Public
 router.post("/register", async (req, res) => {
-  const { name, email, password, role } = req.body;
+  // Role is never taken from the request — public sign-ups are always regular users.
+  // Admins are promoted via the admin panel (PUT /api/admin/users/:id/role) or ADMIN_EMAIL in .env.
+  const { name, email, password } = req.body;
 
   try {
     let user = await User.findOne({ email });
@@ -22,7 +24,7 @@ router.post("/register", async (req, res) => {
       name,
       email,
       password,
-      role: role || "user",
+      role: "user",
     });
 
     await user.save();

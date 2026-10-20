@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
-import { Mail, Lock, ArrowRight, Loader2, User, ShieldCheck } from "lucide-react";
+import { Mail, Lock, ArrowRight, Loader2, User } from "lucide-react";
 import Navbar from "@/components/Navbar";
 
 export default function RegisterPage() {
@@ -11,7 +11,6 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState("user");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const { register } = useAuth();
@@ -36,7 +35,7 @@ export default function RegisterPage() {
     }
 
     setSubmitting(true);
-    const res = await register(name, email, password, role);
+    const res = await register(name, email, password);
     setSubmitting(false);
 
     if (!res.success) {
@@ -148,25 +147,6 @@ export default function RegisterPage() {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl py-2.5 pl-12 pr-4 text-sm text-ct-text-primary placeholder:text-ct-text-muted focus:border-ct-blue/50 focus:bg-white/[0.05] focus:outline-none transition-all"
                   />
-                </div>
-              </div>
-
-              {/* Account Role */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold text-ct-text-secondary tracking-wider uppercase block">
-                  Account Type
-                </label>
-                <div className="relative flex items-center">
-                  <ShieldCheck className="absolute left-4 w-4.5 h-4.5 text-ct-text-muted" />
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="w-full bg-[#0a0f24] border border-white/[0.06] rounded-xl py-2.5 pl-12 pr-4 text-sm text-ct-text-primary focus:border-ct-blue/50 focus:outline-none transition-all appearance-none cursor-pointer"
-                  >
-                    <option value="user">Student / Faculty</option>
-                    <option value="admin">Administrator (Full Access)</option>
-                  </select>
-                  <div className="absolute right-4 pointer-events-none text-ct-text-muted text-xs">▼</div>
                 </div>
               </div>
 

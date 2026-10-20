@@ -42,7 +42,7 @@ router.get("/stats", async (req, res) => {
     let aiStatus = { status: "offline", model: null, latency: null };
     const aiServiceUrl = process.env.AI_SERVICE_URL || "http://localhost:8000";
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1000);
+    const timeoutId = setTimeout(() => controller.abort(), Number(process.env.AI_HEALTH_TIMEOUT_MS) || 1000);
     const startMs = Date.now();
 
     try {

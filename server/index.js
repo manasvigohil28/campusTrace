@@ -9,7 +9,11 @@ const connectDB = async () => {
 const app = express();
 
 // Middleware
-app.use(cors());
+// CLIENT_URL: comma-separated list of allowed frontend origins. Unset = allow all (local dev).
+const allowedOrigins = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(",").map(o => o.trim().replace(/\/$/, ""))
+  : null;
+app.use(cors(allowedOrigins ? { origin: allowedOrigins } : {}));
 app.use(express.json());
 
 // Routes
@@ -24,6 +28,11 @@ app.use("/api/matches", require("./routes/matches"));
 // Basic welcome route
 app.get("/", (req, res) => {
   res.send("CampusTrace AI-Powered Lost & Found API is running!");
+});
+
+// Lightweight health check for uptime monitors / keep-alive pings
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok" });
 });
 
 const PORT = process.env.PORT || 5000;
