@@ -1,4 +1,11 @@
+const dns = require("dns");
 const mongoose = require("mongoose");
+
+// Optional DNS override (e.g. DNS_SERVERS=8.8.8.8,1.1.1.1). Fixes "querySrv ECONNREFUSED" on
+// machines where Node's resolver points at a non-responding local DNS (some Windows setups).
+if (process.env.DNS_SERVERS) {
+  dns.setServers(process.env.DNS_SERVERS.split(",").map(s => s.trim()));
+}
 const seedDB = require("./seed");
 const ensureAdmin = require("./ensureAdmin");
 
